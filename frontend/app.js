@@ -12,6 +12,86 @@ const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 const STORAGE = 'history-life-final-v12-save';
 const API_BASE = 'http://127.0.0.1:8000';
 const modeLabels = { strict: '严格历史', restore: '历史还原', legend: '历史传说', free: '自由行动' };
+const WORLD_BUILD_STEPS = [
+  '正在建立世界基础框架……',
+  '正在加载中国历史时间轴……',
+  '正在构建地理、制度、社会、经济、文化系统……',
+  '正在生成初始历史人物……',
+  '正在建立信息层级系统……',
+  '正在确认核心原则……'
+];
+const DEFAULT_NEARBY_CONTEXT = {
+  current_era: '东汉末年',
+  current_year: '初平元年（公元190年）',
+  current_location: '荆州·南阳郡·邓县·黄家庄',
+  historical_background: [
+    '董卓废少帝立献帝后独揽朝政，关东各州郡牧守以袁绍为盟主起兵讨董。',
+    '洛阳将遭焚毁，董卓准备挟献帝西迁长安；中原百姓流离，瘟疫与饥荒并行。',
+    '南方相对安定但暗流涌动，南阳是袁术、孙坚与刘表势力交汇的前线后方。'
+  ],
+  political_situation: [
+    '汉献帝刘协年幼，名义上为帝，实际权力在董卓手中。',
+    '袁绍、曹操、公孙瓒、刘焉、孙坚等势力正在形成，关东联军彼此猜忌。',
+    '刘表初入襄阳尚未完全控制南阳；袁术屯兵鲁阳，孙坚准备北上进击董卓。'
+  ],
+  society_and_economy: [
+    '豪强地主庄园制仍在，大量自耕农沦为流民或佃客；赋税徭役因战乱失控。',
+    '五铢钱贬值，布帛、粮食和实物交换更可靠；官道失修，关卡与盗匪增多。',
+    '儒学仍是正统，谶纬、佛教与道教在民间流传，朝廷严厉镇压黄巾余波。'
+  ],
+  local_dynamics: [
+    '邓县常有溃兵或散勇路过，村民夜间轮流值更。',
+    '邻村近期遭游兵劫掠，乡里正在藏粮、修墙、组织联防。',
+    '南阳征兵征粮消息不断，粮价、瘟疫和盗匪是最直接的生活压力。'
+  ],
+  reasonable_knowledge: [
+    '你听说董卓控制朝廷、天下大乱。',
+    '你听说十几路诸侯在东方起兵讨董，但不知道谁会获胜。',
+    '你只能可靠知道家乡附近的战况、粮价、瘟疫和盗匪；远方信息多为传闻。'
+  ],
+  world_dynamics: {
+    local: '邓县溃兵与盗匪活动增加，村民轮流值更并藏粮修墙。',
+    regional: '南阳处在刘表、袁术、孙坚势力交汇处，征粮征兵消息不断。',
+    national: '董卓控制朝廷并准备西迁，关东诸侯起兵讨董但彼此猜忌。',
+    surrounding_powers: '袁绍、曹操、公孙瓒、刘备、孙坚等名字在传闻中出现，但细节未必可靠。',
+    current_events: '孙坚军队驻鲁阳，准备与董卓部将交战；战事可能沿交通线影响南阳。',
+    possible_impacts: '袁术可能征粮征兵，刘表可能北上安抚，战事扩大将使邓县成为战场或逃难通道。'
+  },
+  map: {
+    dynasty: '东汉',
+    regime: '汉室名义上统治，实际中央受董卓控制',
+    administration: '荆州·南阳郡·邓县',
+    village: '邓县·黄家庄',
+    nearby_places: ['沔水渡口', '邓县县城', '襄阳', '隆中', '宛城', '鲁阳'],
+    known_roads: ['南阳至襄阳的南北官道'],
+    known_cities: ['邓县', '襄阳', '宛城', '鲁阳'],
+    known_regions: ['南阳盆地', '沔水沿岸'],
+    unknown_regions: ['洛阳', '关中', '江东', '益州']
+  },
+  available_actions: [
+    '去邓县县城打探战况、物价、征兵征粮消息',
+    '去襄阳投奔黄承彦或堂兄黄哲',
+    '留在家中加固围墙、藏粮、组织族人联防',
+    '写信或托人带信给黄承彦',
+    '练习骑射或继续日常耕种读书',
+    '直接描述任何符合时代和身份的行动'
+  ],
+  nearby_places: ['邓县县城', '沔水渡口', '襄阳', '隆中', '宛城', '鲁阳'],
+  known_roads: ['南阳至襄阳的南北官道'],
+  unknown_regions: ['洛阳', '关中', '江东', '益州']
+};
+
+function buildNearbyContext(era, origin, year) {
+  if (era === '东汉' || era === '东汉末年' || !era) {
+    return { ...structuredClone(DEFAULT_NEARBY_CONTEXT), selected_origin: origin, selected_year: year };
+  }
+  return {
+    current_era: era,
+    current_year: year || '由系统确定',
+    current_location: origin || '未指定',
+    instruction: '请依据所选时代、年份和地点生成当地可合理知道的本地、地方、国家、交通、经济与文化信息；不得把后世知识直接灌输给人物。'
+  };
+}
 
 // ---- 基础状态模板 ----
 const baseState = {
@@ -50,6 +130,7 @@ const baseState = {
   known: [],
   knownMap: { currentLocation: '', knownPlaces: [] },
   worldDynamics: { local: '', regional: '', national: '', nearby: '' },
+  worldContext: {},
   logs: [],
   suggestions: [],
   aiInitialized: false
@@ -62,6 +143,7 @@ let entryCounter = 0;
 let lastFailedInput = null;
 let lastFailedEntryId = null;
 let isProcessing = false;
+let pendingInitialization = null;
 
 function loadState() {
   try { return JSON.parse(localStorage.getItem(STORAGE)); } catch { return null; }
@@ -89,6 +171,20 @@ function generateEntryId() {
 function formatTime() {
   const t = state.time;
   return `${t.year} · ${t.month}${t.day} · ${t.hour}`;
+}
+
+function setWorldBuildProgress(message, done = false) {
+  const el = $('#initProgress');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.toggle('done', done);
+}
+
+async function showWorldBuildProgress() {
+  for (const step of WORLD_BUILD_STEPS) {
+    setWorldBuildProgress(step);
+    await new Promise(resolve => setTimeout(resolve, 180));
+  }
 }
 
 function parseInitialRelationships(raw) {
@@ -129,6 +225,51 @@ function mergeRelationships(aiRelationships, playerRelationships) {
 function renderSetup() {
   $('#setupView').classList.remove('hidden');
   $('#gameView').classList.add('hidden');
+}
+
+function openInitializationPreview(data) {
+  const dialog = $('#initializationDialog');
+  if (!dialog) return;
+  const world = data.world_background || '世界背景暂无内容。';
+  const character = data.character_intro || '人物资料暂无内容。';
+  const dynamics = pendingInitialization?.dynamicsText || '暂无额外世界动态。';
+  const suggestions = pendingInitialization?.suggestions || [];
+  const map = pendingInitialization?.knownMap;
+  const extra = [
+    dynamics,
+    suggestions.length ? `\n【现在可以做什么】\n${suggestions.map((item, index) => `${index + 1}. ${item}`).join('\n')}` : '',
+    map?.currentLocation ? `\n【当前位置】\n${map.currentLocation}` : ''
+  ].filter(Boolean).join('\n');
+  $('#worldInitializationPreview').textContent = world;
+  $('#characterInitializationPreview').textContent = character;
+  $('#dynamicsInitializationPreview').textContent = extra || '暂无额外世界动态。';
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
+}
+
+function confirmInitialization() {
+  const dialog = $('#initializationDialog');
+  if (!pendingInitialization) return;
+  const pending = pendingInitialization;
+  pendingInitialization = null;
+  if (dialog?.open) dialog.close();
+  saveState();
+  setWorldBuildProgress(`世界建立完成 · ${state.time.year || pending.yearResolved}`, true);
+  renderGame();
+  toast('AI 世界初始化完成，人生开始');
+}
+
+function cancelInitialization() {
+  const dialog = $('#initializationDialog');
+  pendingInitialization = null;
+  if (dialog?.open) dialog.close();
+  else dialog?.removeAttribute('open');
+  // Initialization has not been confirmed, so it must not become a save.
+  localStorage.removeItem(STORAGE);
+  state = structuredClone(baseState);
+  renderSetup();
+  setWorldBuildProgress('');
+  setResolveStatus('已返回人物创建页');
 }
 
 function renderGame() {
@@ -564,6 +705,7 @@ async function executePlayerAction(input, isRetry = false) {
         known: state.known,
         knownMap: state.knownMap,
         worldDynamics: state.worldDynamics,
+        worldContext: state.worldContext,
         logs: state.logs
       },
       history: history,
@@ -758,10 +900,19 @@ $('#exportBtn').onclick = () => {
 $('#newGameBtn').onclick = () => {
   if (confirm('结束当前人生并回到创建页面？')) {
     localStorage.removeItem(STORAGE);
+    pendingInitialization = null;
     state = structuredClone(baseState);
     renderSetup();
   }
 };
+
+// 世界与人物初始化确认
+$('#confirmInitializationBtn').onclick = confirmInitialization;
+$('#cancelInitializationBtn').onclick = cancelInitialization;
+$('#initializationDialog').addEventListener('cancel', (event) => {
+  event.preventDefault();
+  cancelInitialization();
+});
 
 // 年份解析
 $('#resolveYearBtn').onclick = async () => {
@@ -786,8 +937,10 @@ $('#startBtn').onclick = async () => {
   btn.disabled = true;
   label.textContent = 'AI 正在建立世界…';
   clearSetupError();
+  setWorldBuildProgress('正在准备 AI 世界初始化…');
 
   try {
+    await showWorldBuildProgress();
     const historyEvent = $('#historyEvent').value.trim();
     const selectedYear = $('#birthYear')?.value || '';
     let yearResolved = '';
@@ -815,6 +968,7 @@ $('#startBtn').onclick = async () => {
     const mode = $('.mode-option.selected').dataset.mode || 'restore';
     const era = $('#eraSelect').value;
     const charType = $('#characterType').value;
+    const worldContext = buildNearbyContext(era, character.origin, yearResolved);
 
     const data = await apiJson('/api/game/init', {
       method: 'POST',
@@ -824,7 +978,8 @@ $('#startBtn').onclick = async () => {
         era,
         year: yearResolved,
         character_type: charType,
-        character
+        character,
+        world_context: worldContext
       })
     });
 
@@ -858,26 +1013,43 @@ $('#startBtn').onclick = async () => {
       state.knownMap = aiState.knownMap;
       if (state.knownMap.currentLocation) state.character.location = state.knownMap.currentLocation;
     }
-    if (aiState.worldDynamics) state.worldDynamics = aiState.worldDynamics;
-    if (aiState.current_goals) state.current_goals = aiState.current_goals;
+    if (aiState.worldDynamics || aiState.world_dynamics) state.worldDynamics = aiState.worldDynamics || aiState.world_dynamics;
+    state.worldContext = aiState.worldContext || worldContext;
+    if (aiState.current_goals || aiState.currentGoals) state.current_goals = aiState.current_goals || aiState.currentGoals;
     if (data.suggested_actions) state.suggestions = data.suggested_actions;
+    if (aiState.available_actions) state.suggestions = aiState.available_actions;
 
-    state.logs = [{
-      id: generateEntryId(),
-      type: 'narrative',
-      time: formatTime(),
-      location: state.character.location || '未知',
-      duration: '初始',
-      text: data.character_intro || `你在${state.time.year || '这个时代'}开始了这一生。`
-    }];
+    const worldDynamics = state.worldDynamics || {};
+    const dynamicsText = [
+      worldDynamics.local && `【本地动态】\n${worldDynamics.local}`,
+      worldDynamics.regional && `【地方动态】\n${worldDynamics.regional}`,
+      worldDynamics.national && `【国家动态】\n${worldDynamics.national}`,
+      worldDynamics.nearby && `【周边动态】\n${worldDynamics.nearby}`,
+      worldDynamics.current_events && `【正在发生的事情】\n${worldDynamics.current_events}`,
+      worldDynamics.possible_impacts && `【近期可能影响你的事情】\n${worldDynamics.possible_impacts}`
+    ].filter(Boolean).join('\n\n');
+    state.logs = [
+      { id: generateEntryId(), type: 'system', time: formatTime(), location: state.character.location || '未知', duration: '初始化', text: `世界建立完成 · ${state.time.year || yearResolved}` },
+      { id: generateEntryId(), type: 'narrative', time: formatTime(), location: state.character.location || '未知', duration: '世界背景', text: data.world_background || `当年历史背景：你在${state.time.year || '这个时代'}开始生活。` },
+      { id: generateEntryId(), type: 'narrative', time: formatTime(), location: state.character.location || '未知', duration: '人物创建', text: data.character_intro || `人物创建完成 · ${state.time.year || '这个时代'}` },
+      ...(dynamicsText ? [{ id: generateEntryId(), type: 'narrative', time: formatTime(), location: state.character.location || '未知', duration: '世界动态', text: `世界动态 · ${state.time.year || ''}\n\n${dynamicsText}` }] : [])
+    ];
 
-    saveState();
-    renderGame();
-    toast('AI 世界初始化完成，人生开始');
+    // Keep generated data in memory until the player explicitly confirms.
+    pendingInitialization = {
+      data,
+      yearResolved,
+      dynamicsText,
+      knownMap: state.knownMap,
+      suggestions: state.suggestions
+    };
+    setWorldBuildProgress(`世界建立完成 · ${state.time.year || yearResolved} · 等待确认`, true);
+    openInitializationPreview(data);
   } catch (error) {
     const msg = error.message.startsWith('AI配置失败') ? error.message : `AI配置失败：${error.message}`;
     setupError(msg);
     setResolveStatus('无法开始人生', 'error');
+    setWorldBuildProgress('世界建立失败 · 请检查 AI 配置', true);
     renderSetup();
   } finally {
     btn.disabled = false;

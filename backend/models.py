@@ -1,17 +1,21 @@
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
+
 class CreateGameRequest(BaseModel):
     mode: str
     era: str
     year: Optional[str] = ""
     character_type: str = "fictional"
     character: Dict[str, Any] = Field(default_factory=dict)
+    world_context: Dict[str, Any] = Field(default_factory=dict)
+
 
 class ResolveTimeRequest(BaseModel):
     era: str
     selected_year: Optional[str] = ""
     historical_event: str
+
 
 class ResolveTimeResponse(BaseModel):
     era: str
@@ -20,6 +24,7 @@ class ResolveTimeResponse(BaseModel):
     reasoning: str = ""
     confidence: str = "中"
 
+
 class PlayRequest(BaseModel):
     session_id: str
     player_input: str
@@ -27,12 +32,14 @@ class PlayRequest(BaseModel):
     history: List[Dict[str, str]] = Field(default_factory=list)
     pace: str = "immersive"
 
+
 class GameInitResponse(BaseModel):
     session_id: str
     world_background: str
     character_intro: str
     initial_state: Dict[str, Any]
     suggested_actions: List[str]
+
 
 class PlayResponse(BaseModel):
     narrative: str
@@ -42,3 +49,4 @@ class PlayResponse(BaseModel):
     time_elapsed: str = "片刻"
     location_changed: Optional[str] = None
     new_info: List[str] = Field(default_factory=list)
+    memory_update: Dict[str, Any] = Field(default_factory=dict)

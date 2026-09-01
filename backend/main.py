@@ -1,6 +1,7 @@
+import json
 import uuid
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,18 +9,71 @@ from fastapi.staticfiles import StaticFiles
 
 try:
     from .ai_engine import AIServiceError, call_openai, parse_init, parse_play
-    from .config import HOST, MAX_HISTORY_LENGTH, PORT, OPENAI_API_KEY
-    from .models import CreateGameRequest, GameInitResponse, PlayRequest, PlayResponse, ResolveTimeRequest, ResolveTimeResponse
-    from .prompts import build_init_prompt, build_play_prompt, build_time_resolve_prompt
+    from .config import HOST, MAX_HISTORY_LENGTH, MAX_MEMORY_ITEMS_PER_CATEGORY, PORT, OPENAI_API_KEY, RECENT_CONVERSATION_MESSAGES
+    from .models import CreateGameRequest, GameInitResponse, PlayRequest, PlayResponse, ResolveTimeRequest, \
+        ResolveTimeResponse
+    from .prompts import build_init_prompt, build_play_prompt, build_time_resolve_prompt, load_reference_document
 except ImportError:
     from ai_engine import AIServiceError, call_openai, parse_init, parse_play
-    from config import HOST, MAX_HISTORY_LENGTH, PORT, OPENAI_API_KEY
-    from models import CreateGameRequest, GameInitResponse, PlayRequest, PlayResponse, ResolveTimeRequest, ResolveTimeResponse
-    from prompts import build_init_prompt, build_play_prompt, build_time_resolve_prompt
+    from config import HOST, MAX_HISTORY_LENGTH, MAX_MEMORY_ITEMS_PER_CATEGORY, PORT, OPENAI_API_KEY, RECENT_CONVERSATION_MESSAGES
+    from models import CreateGameRequest, GameInitResponse, PlayRequest, PlayResponse, ResolveTimeRequest, \
+        ResolveTimeResponse
+    from prompts import build_init_prompt, build_play_prompt, build_time_resolve_prompt, load_reference_document
 
 app = FastAPI(title="历史人生模拟器 API", version="1.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 sessions: Dict[str, Dict[str, Any]] = {}
+SESSION_DIR = Path(__file__).resolve().parent.parent / "data" / "sessions"
+
+
+def session_file(session_id: str) -> Path:
+    return SESSION_DIR / f"{session_id}.json"
+
+
+def save_session(session_id: str) -> None:
+    SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    session_file(session_id).write_text(
+        json.dumps(sessions[session_id], ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def load_session(session_id: str) -> Optional[Dict[str, Any]]:
+    path = session_file(session_id)
+    if not path.is_file():
+        return None
+    try:
+        session = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(session, dict):
+        return None
+    sessions[session_id] = session
+    return session
+
+
+MEMORY_CATEGORIES = ("character_facts", "world_changes", "relationship_changes", "important_events", "open_threads")
+
+
+def normalize_memory(memory: Any) -> Dict[str, list]:
+    memory = memory if isinstance(memory, dict) else {}
+    return {
+        category: list(memory.get(category, []))[-MAX_MEMORY_ITEMS_PER_CATEGORY:]
+        if isinstance(memory.get(category, []), list) else []
+        for category in MEMORY_CATEGORIES
+    }
+
+
+def update_long_term_memory(session: Dict[str, Any], memory_update: Any) -> None:
+    memory = normalize_memory(session.get("long_term_memory"))
+    if isinstance(memory_update, dict):
+        for category in MEMORY_CATEGORIES:
+            values = memory_update.get(category, [])
+            if isinstance(values, str):
+                values = [values]
+            if isinstance(values, list):
+                memory[category].extend(str(value).strip() for value in values if str(value).strip())
+                memory[category] = memory[category][-MAX_MEMORY_ITEMS_PER_CATEGORY:]
+    session["long_term_memory"] = memory
 
 ERAS = [
     {"name": "夏", "period": "约前2070—前1600"}, {"name": "商", "period": "约前1600—前1046"},
@@ -42,32 +96,42 @@ ERAS = [
 async def get_eras():
     return {"eras": ERAS}
 
+
 @app.get("/api/health")
 async def health():
     try:
         from .config import OPENAI_MODEL
     except ImportError:
         from config import OPENAI_MODEL
-    return {"ok": True, "ai_configured": bool(OPENAI_API_KEY), "model": "configured" if OPENAI_API_KEY else "missing", "model_name": OPENAI_MODEL}
+    return {"ok": True, "ai_configured": bool(OPENAI_API_KEY), "model": "configured" if OPENAI_API_KEY else "missing",
+            "model_name": OPENAI_MODEL}
+
 
 @app.post("/api/time/resolve", response_model=ResolveTimeResponse)
 async def resolve_time(request: ResolveTimeRequest):
     if not OPENAI_API_KEY:
         raise HTTPException(status_code=503, detail="AI配置失败：未配置 OPENAI_API_KEY")
     try:
-        output = await call_openai(build_time_resolve_prompt(request.era, request.selected_year or "", request.historical_event))
+        output = await call_openai(
+            build_time_resolve_prompt(request.era, request.selected_year or "", request.historical_event))
     except AIServiceError as error:
         raise HTTPException(status_code=502, detail=f"AI配置失败：{error}")
     if not output.get("valid") or not output.get("year") or not output.get("year_label"):
         raise HTTPException(status_code=422, detail="AI配置失败：无法根据历史事件确定有效年份")
-    return ResolveTimeResponse(era=output.get("era", request.era), year=str(output["year"]), year_label=str(output["year_label"]), reasoning=str(output.get("reasoning", "")), confidence=str(output.get("confidence", "中")))
+    return ResolveTimeResponse(era=output.get("era", request.era), year=str(output["year"]),
+                               year_label=str(output["year_label"]), reasoning=str(output.get("reasoning", "")),
+                               confidence=str(output.get("confidence", "中")))
 
 
 @app.post("/api/game/init", response_model=GameInitResponse)
 async def init_game(request: CreateGameRequest):
     if not OPENAI_API_KEY:
         raise HTTPException(status_code=503, detail="AI配置失败：未配置 OPENAI_API_KEY，不能开始人生")
-    prompt = build_init_prompt(request.mode, request.era, request.year or "", request.character_type, request.character)
+    try:
+        reference_document = load_reference_document()
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=503, detail=f"AI配置失败：{error}，不能开始人生")
+    prompt = build_init_prompt(request.mode, request.era, request.year or "", request.character_type, request.character, request.world_context, reference_document)
     try:
         output = await call_openai(prompt)
     except AIServiceError as error:
@@ -78,7 +142,8 @@ async def init_game(request: CreateGameRequest):
     # Normalize provider responses and re-apply player-authored fields. Some
     # compatible models return a flat initial_state instead of currentCharacter.
     initial_state = parsed["initial_state"] if isinstance(parsed["initial_state"], dict) else {}
-    nested_character = initial_state.get("currentCharacter") or initial_state.get("current_character") or initial_state.get("character") or {}
+    nested_character = initial_state.get("currentCharacter") or initial_state.get(
+        "current_character") or initial_state.get("character") or {}
     flat_character = {
         key: initial_state[key] for key in (
             "name", "age", "gender", "origin", "location", "role", "personality",
@@ -108,6 +173,31 @@ async def init_game(request: CreateGameRequest):
             name = str(item["name"]).strip()
             relationships_by_name[name] = {**relationships_by_name.get(name, {}), **item}
     initial_state["relationships"] = list(relationships_by_name.values())
+    initial_state["worldContext"] = request.world_context
+    context_dynamics = request.world_context.get("worldDynamics") or request.world_context.get("world_dynamics") or {
+        "local": "\n".join(request.world_context.get("local_dynamics", [])),
+        "regional": "\n".join(request.world_context.get("political_situation", [])),
+        "national": "\n".join(request.world_context.get("historical_background", [])),
+        "nearby": "\n".join(request.world_context.get("reasonable_knowledge", [])),
+    }
+    if isinstance(initial_state.get("worldDynamics"), dict):
+        initial_state["worldDynamics"] = {**context_dynamics, **initial_state["worldDynamics"]}
+    elif context_dynamics:
+        initial_state["worldDynamics"] = context_dynamics
+    context_map = request.world_context.get("knownMap") or request.world_context.get("map")
+    if isinstance(initial_state.get("knownMap"), dict):
+        initial_state["knownMap"] = {**(context_map or {}), **initial_state["knownMap"]}
+    elif context_map:
+        initial_state["knownMap"] = context_map
+    elif request.world_context.get("nearby_places"):
+        initial_state["knownMap"] = {
+            "currentLocation": request.world_context.get("current_location", "未知"),
+            "nearbyPlaces": request.world_context.get("nearby_places", []),
+            "knownRoads": request.world_context.get("known_roads", []),
+            "knownCities": request.world_context.get("nearby_places", []),
+            "knownRegions": [],
+            "unknownRegions": request.world_context.get("unknown_regions", []),
+        }
     if not isinstance(initial_state.get("time"), dict):
         initial_state["time"] = {
             "era": request.era,
@@ -121,21 +211,57 @@ async def init_game(request: CreateGameRequest):
         }
     parsed["initial_state"] = initial_state
     session_id = str(uuid.uuid4())
-    sessions[session_id] = {"state": parsed["initial_state"], "history": []}
+    sessions[session_id] = {
+        "state": parsed["initial_state"],
+        "history": [],
+        "long_term_memory": normalize_memory({
+            "character_facts": [f"人物由玩家创建：{request.character.get('name', '无名')}，身份为{request.character.get('role', '未指定')}。"],
+            "world_changes": [],
+            "relationship_changes": [f"初始关系：{item.get('name')}（{item.get('relation', '相识')}）" for item in request.character.get("initial_relationships", []) if isinstance(item, dict) and item.get("name")],
+            "important_events": [],
+            "open_threads": [],
+        }),
+        "reference_document_loaded": True,
+        "reference_document_path": str(Path(__file__).resolve().parents[1] / "data" / "历史人物模拟.txt"),
+        "conversation": [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": json.dumps(output, ensure_ascii=False)},
+        ],
+    }
+    save_session(session_id)
     return GameInitResponse(session_id=session_id, **parsed)
 
 
 @app.post("/api/play", response_model=PlayResponse)
 async def play(request: PlayRequest):
     if request.session_id not in sessions:
+        load_session(request.session_id)
+    if request.session_id not in sessions:
         raise HTTPException(status_code=404, detail="会话不存在")
-    prompt = build_play_prompt(request.current_state, request.history, request.player_input, request.pace)
-    parsed = parse_play(await call_openai(prompt))
     session = sessions[request.session_id]
-    session["history"] += [{"role": "user", "content": request.player_input}, {"role": "system", "content": parsed["narrative"]}]
+    # The model has no guaranteed memory between HTTP calls. Rebuild the
+    # prompt from the server-side session plus the latest client state.
+    prompt_state = {**session.get("state", {}), **request.current_state}
+    prompt_history = (session.get("history", []) + request.history)[-MAX_HISTORY_LENGTH:]
+    recent_conversation = session.get("conversation", [])[-RECENT_CONVERSATION_MESSAGES:]
+    prompt = build_play_prompt(prompt_state, prompt_history, request.player_input, request.pace, session.get("long_term_memory"))
+    try:
+        output = await call_openai(prompt, conversation=recent_conversation)
+    except AIServiceError as error:
+        raise HTTPException(status_code=502, detail=f"AI配置失败：{error}")
+    parsed = parse_play(output)
+    update_long_term_memory(session, parsed.get("memory_update"))
+    session.setdefault("conversation", []).extend([
+        {"role": "user", "content": prompt},
+        {"role": "assistant", "content": json.dumps(output, ensure_ascii=False)},
+    ])
+    session["state"] = prompt_state
+    session["history"] += [{"role": "user", "content": request.player_input},
+                           {"role": "system", "content": parsed["narrative"]}]
     session["history"] = session["history"][-MAX_HISTORY_LENGTH:]
     if parsed["state_updates"]:
         session["state"].update(parsed["state_updates"])
+    save_session(request.session_id)
     return PlayResponse(**parsed)
 
 
@@ -144,4 +270,5 @@ app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host=HOST, port=PORT)

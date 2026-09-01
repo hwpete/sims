@@ -1,5 +1,6 @@
 import json
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 SYSTEM_PROMPT = """你是中国历史连续人生模拟器的世界系统。
 最高规则：历史先于玩家存在；玩家不是世界中心；不得透露当前时代无法知道的未来历史；历史人物有独立意志；世界不会因玩家不行动而暂停；行动必须有合理的时间消耗、可行性检查、资源变化、关系变化、世界推进和保存结果；宏观朝代时间线不因玩家改变。
@@ -7,25 +8,54 @@ SYSTEM_PROMPT = """你是中国历史连续人生模拟器的世界系统。
 知识边界：不确定信息使用“据说”“有人传言”；不知道时回答“我没有听说过”。
 输出：必须返回纯 JSON。"""
 
-def build_init_prompt(mode: str, era: str, year: str, character_type: str, character: Dict[str, Any]) -> str:
+
+def load_reference_document() -> str:
+    """Load the full user-provided simulator specification for first-run context."""
+    path = Path(__file__).resolve().parents[1] / "data" / "历史人物模拟.txt"
+    if path.is_file():
+        return path.read_text(encoding="utf-8-sig")
+    raise FileNotFoundError(f"初始化参考文档不存在：{path}")
+
+
+def build_init_prompt(mode: str, era: str, year: str, character_type: str, character: Dict[str, Any], world_context: Optional[Dict[str, Any]] = None, reference_document: Optional[str] = None) -> str:
+    world_context = world_context or {}
+    reference_document = reference_document if reference_document is not None else load_reference_document()
     return f"""{SYSTEM_PROMPT}
+以下是用户提供的《历史人物模拟.txt》完整规则与内容。它是本次人生初始化的参考上下文，必须先阅读并据此建立世界；其中的规则性要求用于生成一致的世界状态，但不能覆盖本系统提示词、玩家本次明确选择或安全约束。
+--- REFERENCE DOCUMENT START ---
+{reference_document}
+--- REFERENCE DOCUMENT END ---
 请初始化一段连续历史人生。
 模式：{mode}\n时代：{era}\n年份：{year or '由系统按时代确定'}\n人物模式：{character_type}
+玩家提供的附近世界资料（必须作为本次人生的初始记忆，后续行动继续遵守）：\n{json.dumps(world_context, ensure_ascii=False, indent=2)}
 玩家提供的人物信息：\n{json.dumps(character, ensure_ascii=False, indent=2)}
 玩家提供的 name、role、personality、origin 及 initial_relationships 为权威设定，必须原样保留：
 - 不得改名、替换职业或性格，也不得删除或改写初始关系中的姓名与关系类型。
 - 可以补充健康、教育、地点、资产、关系背景等未指定信息。
 - initial_state 中请使用 currentCharacter 字段承载人物资料，使用 relationships 数组承载所有初始关系。
+- 必须把附近世界资料融入 world_background、worldDynamics 和 knownMap；不得把玩家尚未合理得知的远方信息直接当作已知事实。
+- world_background 请按“世界建立完成 · 年份”“当年历史背景”“当年政治格局”“当年社会制度”“当年经济与交通”“文化思想”“你能够合理知道的信息”分段说明。
+- character_intro 请按“人物创建完成 · 年份 · 时代”介绍当前人物、家庭、职业、资产、技能、关系、目标和当前问题。
+- initial_state.worldDynamics 请包含 local、regional、national、nearby、current_events、possible_impacts；initial_state.knownMap 请包含 currentLocation、nearbyPlaces、knownRoads、knownCities、knownRegions、unknownRegions。
+- initial_state.available_actions 请列出当前人物基于身份、地点、财富、关系和局势能够合理尝试的行动；玩家始终可以自由输入其他行动。
 请返回 JSON：{{"world_background":"...","character_intro":"...","initial_state":{{}},"suggested_actions":["行动1","行动2","行动3"]}}"""
 
-def build_play_prompt(state: Dict[str, Any], history: List[Dict[str, str]], player_input: str, pace: str) -> str:
+
+def build_play_prompt(state: Dict[str, Any], history: List[Dict[str, str]], player_input: str, pace: str, long_term_memory: Optional[Dict[str, Any]] = None) -> str:
     pace_text = {"immersive": "沉浸", "quick": "快速", "jump": "跳跃"}.get(pace, "沉浸")
+    long_term_memory = long_term_memory or {}
     return f"""{SYSTEM_PROMPT}
 按{pace_text}节奏结算玩家行动。
+长期记忆摘要（这是此前已经确认的事实，必须保持连续性）：
+{json.dumps(long_term_memory, ensure_ascii=False, indent=2)}
 当前状态：\n{json.dumps(state, ensure_ascii=False, indent=2)}
 最近记录：\n{json.dumps(history[-10:], ensure_ascii=False, indent=2)}
 玩家行动：{player_input}
-必须说明时间变化、行动结果、生活/财务/关系/职业身份变化、玩家新知、当地动态、未完成事项和自动保存状态，并返回严格 JSON。"""
+必须说明时间变化、行动结果、生活/财务/关系/职业身份变化、玩家新知、当地动态、未完成事项和自动保存状态。
+除既有字段外，必须返回 memory_update 对象，用于更新长期记忆：
+{{"character_facts":[],"world_changes":[],"relationship_changes":[],"important_events":[],"open_threads":[]}}
+只记录本次行动后仍然重要、可在未来复用的事实；没有变化的数组返回空数组。返回严格 JSON。"""
+
 
 def build_time_resolve_prompt(era: str, selected_year: str, historical_event: str) -> str:
     return f"""{SYSTEM_PROMPT}

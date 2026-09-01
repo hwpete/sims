@@ -328,6 +328,23 @@
       line-height: 1.5;
     }
 
+    .init-progress {
+      min-height: 18px;
+      margin: 12px 0 0;
+      color: var(--accent-dark);
+      font-size: 11px;
+      line-height: 1.5;
+      letter-spacing: .2px;
+    }
+    .init-progress::before {
+      content: '◌';
+      display: inline-block;
+      margin-right: 6px;
+      animation: init-pulse 1s ease-in-out infinite;
+    }
+    .init-progress.done::before { content: '✓'; animation: none; }
+    @keyframes init-pulse { 50% { opacity: .35; } }
+
     .event-field {
       position: relative;
     }
@@ -1370,6 +1387,54 @@
       backdrop-filter: blur(2px);
       overflow: hidden;
     }
+    #initializationDialog {
+      width: min(920px, 94vw);
+      max-width: 920px;
+      max-height: 88vh;
+    }
+    .initialization-body {
+      padding: 18px 22px 8px;
+      max-height: calc(88vh - 145px);
+      overflow-y: auto;
+    }
+    .initialization-section {
+      margin-bottom: 18px;
+    }
+    .initialization-section h3 {
+      margin-bottom: 8px;
+      color: var(--text-primary);
+      font-family: var(--font-heading);
+      font-size: 15px;
+      font-weight: 700;
+      border-left: 3px solid var(--accent-dark);
+      padding-left: 9px;
+    }
+    .initialization-content {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--text-secondary);
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: 6px;
+      padding: 13px 15px;
+      font-size: 14px;
+      line-height: 1.75;
+    }
+    .initialization-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 14px 22px 18px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-panel);
+    }
+    .initialization-actions button {
+      min-width: 112px;
+    }
+    .initialization-actions .primary-btn {
+      width: auto;
+      margin-top: 0;
+    }
     dialog::backdrop {
       background: rgba(0, 0, 0, 0.3);
       backdrop-filter: blur(2px);
@@ -1722,6 +1787,7 @@
           <span>开始这一生</span>
           <span>→</span>
         </button>
+        <p id="initProgress" class="init-progress" aria-live="polite"></p>
         <p class="setup-note">最终本地版 · 进度保存在浏览器，不需要账号</p>
         <div id="aiError" class="ai-error hidden"></div>
       </div>
@@ -1847,8 +1913,33 @@
     </div>
     <div id="inventoryDetail"></div>
   </dialog>
+
+  <!-- 世界与人物初始化确认 -->
+  <dialog id="initializationDialog">
+    <div class="dialog-head">
+      <h2>世界与人物初始化完成</h2>
+    </div>
+    <div class="initialization-body">
+      <section class="initialization-section">
+        <h3>世界初始化</h3>
+        <div id="worldInitializationPreview" class="initialization-content"></div>
+      </section>
+      <section class="initialization-section">
+        <h3>人物初始化</h3>
+        <div id="characterInitializationPreview" class="initialization-content"></div>
+      </section>
+      <section class="initialization-section">
+        <h3>世界动态与可行动事项</h3>
+        <div id="dynamicsInitializationPreview" class="initialization-content"></div>
+      </section>
+    </div>
+    <div class="initialization-actions">
+      <button type="button" id="cancelInitializationBtn" class="secondary-btn">返回修改</button>
+      <button type="button" id="confirmInitializationBtn" class="primary-btn">确认并开始</button>
+    </div>
+  </dialog>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=20260901-3"></script>
 </body>
 </html>
