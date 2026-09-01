@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>历史人生模拟器 · V1.2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="overrides.css">
+</head>
+<body>
+  <div id="app">
+    <main id="setupView" class="setup-shell">
+      <div class="setup-topbar"><span class="seal">史</span><span>HISTORY LIFE SIMULATOR</span><span class="version">V1.2 · FINAL EDITION</span><span class="ai-model-badge" id="aiModelBadge">AI模型：gpt-4o-mini · 检查中</span></div>
+      <section class="setup-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">历史连续人生沙盘</p>
+          <h1>不是穿越历史，<br><em>是在历史中活过一生。</em></h1>
+          <p class="hero-text">从一个真实的时代切片开始。你的身份、家庭、土地、关系与选择，共同决定这一生能走多远。</p>
+          <div class="principles"><span>历史先于玩家存在</span><span>无主角光环</span><span>不可回滚</span></div>
+        </div>
+        <div class="setup-card">
+          <div class="card-heading"><span class="step-no">01</span><div><h2>建立你的世界</h2><p>完整历史连续人生 · 夏至清末</p></div></div>
+          <label>历史世界模式</label>
+          <div class="mode-grid" id="modeGrid">
+            <button class="mode-option selected" data-mode="strict"><b>严格历史</b><small>史料优先，保留不确定性</small></button>
+            <button class="mode-option" data-mode="restore"><b>历史还原</b><small>允许对空白作合理推演</small></button>
+            <button class="mode-option" data-mode="legend"><b>历史传说</b><small>传说成为未知的现实力量</small></button>
+            <button class="mode-option" data-mode="free"><b>自由行动</b><small>改变个人与局部，不改宏观</small></button>
+          </div>
+          <div class="form-row"><div><label for="eraSelect">出生时代</label><select id="eraSelect"><option value="东汉末年">东汉末年 · 公元184—220</option><option value="夏">夏 · 约前2070—前1600</option><option value="商">商 · 约前1600—前1046</option><option value="西周">西周 · 前1046—前771</option><option value="春秋战国">春秋战国 · 前770—前221</option><option value="秦汉">秦汉 · 前221—公元220</option><option value="三国两晋">三国两晋 · 公元220—420</option><option value="南北朝隋唐">南北朝隋唐 · 公元420—907</option><option value="五代宋辽金">五代宋辽金 · 公元907—1279</option><option value="元">元 · 公元1271—1368</option><option value="明">明 · 公元1368—1644</option><option value="清末">清末 · 公元1644—1911</option></select></div><div><label for="birthYear">具体年份</label><select id="birthYear"><option value="191">初平二年（公元191年）</option><option value="189">中平六年（公元189年）</option><option value="196">建安元年（公元196年）</option><option value="">由 AI 按历史事件确定</option></select></div></div>
+          <div class="form-row"><div class="event-field"><label for="historyEvent">历史事件（可选）</label><input id="historyEvent" placeholder="例如：黄巾起义爆发后第三年"><small>输入事件、相对时间或人物经历，由 AI 推算对应年份</small></div><div class="resolve-field"><label>&nbsp;</label><button type="button" id="resolveYearBtn" class="secondary-btn">✦ AI 推算年份</button><span id="yearResolveStatus" class="resolve-status" aria-live="polite"></span></div></div>
+          <div class="form-row"><div><label for="charName">姓名</label><input id="charName" value="黄伟" maxlength="8"></div><div><label for="charAge">年龄</label><input id="charAge" type="number" value="14" min="8" max="60"></div></div>
+          <div class="form-row"><div><label for="charGender">性别</label><select id="charGender"><option>男</option><option>女</option></select></div><div><label for="charOrigin">籍贯</label><input id="charOrigin" value="南阳邓县"></div></div>
+          <div class="form-row single"><div><label for="charRole">初始身份 / 职业</label><select id="charRole"><option>郡府书吏</option><option>自耕农</option><option>铁匠学徒</option><option>行商伙计</option><option>私塾学生</option></select></div></div>
+          <button id="startBtn" class="primary-btn"><span>开始这一生</span><span>→</span></button>
+          <p class="setup-note">最终本地版 · 进度保存在浏览器，不需要账号</p>
+        </div>
+      </section>
+      <section class="setup-footer"><div><b>当前历史切片</b><span>东汉 · 初平二年 · 荆州江陵</span></div><div><b>模拟边界</b><span>时间、身份、资源与消息延迟均按时代结算</span></div><div><b>推荐体验</b><span>沉浸节奏 · 每次行动后查看日志</span></div></section>
+    </main>
+
+    <main id="gameView" class="game-shell hidden">
+      <header class="game-header"><div class="brand"><span class="seal small">史</span><div><strong>历史人生模拟器</strong><small id="worldLabel">东汉 · 江陵城</small></div></div><div class="header-time"><span class="live-dot"></span><span id="headerTime">初平二年 · 三月初七 · 辰时</span></div><div class="ai-model-badge game-ai-model" id="gameAiModelBadge">AI模型：gpt-4o-mini · 已连接</div><div class="header-actions"><button class="icon-btn" id="saveBtn" title="快速存档">⌑</button><button class="icon-btn" id="exportBtn" title="导出人生档案">⇩</button><button class="icon-btn" id="newGameBtn" title="结束并重新开始">↻</button></div></header>
+      <div class="game-layout">
+        <aside class="left-panel">
+          <section class="profile-block"><div class="portrait"><span id="portraitChar">黄</span><i></i></div><div><h2 id="profileName">黄伟</h2><p id="profileRole">郡府书吏 · 14岁</p><span class="status-pill">健康</span></div></section>
+          <section class="time-card"><div class="section-label">当前时间 <span>LOCAL ERA</span></div><div class="era-time"><b id="eraName">东汉</b><strong id="eraYear">初平二年</strong></div><div class="date-row"><span id="dateText">三月初七</span><span id="seasonText">春 · 惊蛰后</span></div><div class="location-line"><span class="pin">⌖</span><span id="locationText">荆州 · 江陵城</span></div></section>
+          <section class="mini-section"><div class="section-label">近期目标 <span id="goalCount">03</span></div><div id="goalList" class="goal-list"></div></section>
+          <section class="mini-section"><div class="section-label">行囊快览 <button class="text-btn" id="inventoryBtn">查看全部</button></div><div id="inventoryPreview" class="inventory-preview"></div><div class="currency"><span>铜钱</span><b id="currencyValue">950</b><small>枚</small></div></section>
+          <section class="mini-section location-mini"><div class="section-label">所在地区</div><b id="locationSummary">江陵城 · 南市附近</b><p id="locationDescription">城中有官府、市集、作坊与往来道路。你只能知道亲自接触过的地方。</p></section>
+          <div class="autosave"><span class="save-icon">✓</span><div><b>已自动保存</b><small id="saveTime">刚刚</small></div></div>
+        </aside>
+        <section class="story-panel"><div class="story-top"><div><p class="eyebrow">你的故事正在发生</p><h1>人生历程</h1></div><div class="pace-control"><span>叙事节奏</span><button class="pace selected" data-pace="immersive">沉浸</button><button class="pace" data-pace="quick">快速</button><button class="pace" data-pace="jump">跳跃</button></div></div><div id="storyStream" class="story-stream"></div><div id="suggestionBar" class="suggestion-bar"></div><form id="actionForm" class="action-bar"><button type="button" class="voice-btn" title="语音输入">◌</button><input id="actionInput" autocomplete="off" placeholder="你想做什么？例如：去南市打听粮价"><button class="send-btn" title="执行行动">↑</button></form><p class="action-hint">Enter 执行行动 <span>·</span> 每次行动都会推进时间并自动保存</p></section>
+        <aside class="right-panel"><div class="right-tabs"><button class="tab selected" data-tab="status">人物详情</button><button class="tab" data-tab="relations">关系网络</button><button class="tab" data-tab="map">认知地图</button></div><div id="rightContent"></div></aside>
+      </div>
+    </main>
+    <div id="toast" class="toast"></div>
+    <dialog id="inventoryDialog"><div class="dialog-head"><h2>行囊与资产</h2><button class="close-dialog">×</button></div><div id="inventoryDetail"></div></dialog>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
