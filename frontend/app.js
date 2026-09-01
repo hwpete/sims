@@ -1,83 +1,901 @@
-const $ = (s,root=document)=>root.querySelector(s); const $$ = (s,root=document)=>[...root.querySelectorAll(s)];
-const STORAGE='history-life-final-v12-save';
-const modeLabels={strict:'严格历史',restore:'历史还原',legend:'历史传说',free:'自由行动'};
-const eraPresets={
-  '夏':{era:'夏',year:'夏后氏时期',month:'春月',day:'初七',season:'春',solar:'春分前',location:'夏邑 · 王城附近',origin:'夏邑乡里',role:'农夫'},
-  '商':{era:'商',year:'武丁时期',month:'三月',day:'初七',season:'春',solar:'春分后',location:'殷墟 · 王畿',origin:'王畿乡里',role:'青铜工匠'},
-  '西周':{era:'西周',year:'宣王时期',month:'三月',day:'初七',season:'春',solar:'惊蛰后',location:'镐京 · 城南',origin:'关中乡里',role:'采邑吏员'},
-  '春秋战国':{era:'战国',year:'周赧王时期',month:'三月',day:'初七',season:'春',solar:'惊蛰后',location:'郢都 · 南市',origin:'楚地乡里',role:'工匠学徒'},
-  '秦汉':{era:'西汉',year:'元鼎年间',month:'三月',day:'初七',season:'春',solar:'惊蛰后',location:'长安 · 东市',origin:'关中乡里',role:'文吏'},
-  '东汉末年':{era:'东汉',year:'初平二年',month:'三月',day:'初七',season:'春',solar:'惊蛰后',location:'荆州 · 江陵城',origin:'南阳邓县',role:'郡府书吏'},
-  '三国两晋':{era:'东吴',year:'黄武年间',month:'三月',day:'初七',season:'春',solar:'惊蛰后',location:'建业 · 城南',origin:'丹阳乡里',role:'船工'},
-  '南北朝隋唐':{era:'唐',year:'开元年间',month:'三月',day:'初七',season:'春',solar:'惊蛰后',location:'扬州 · 南市',origin:'江南乡里',role:'茶商伙计'},
-  '五代宋辽金':{era:'北宋',year:'熙宁年间',month:'三月',day:'初七',season:'春',solar:'惊蛰后',location:'汴京 · 城东',origin:'汴梁乡里',role:'书坊学徒'},
-  '元':{era:'元',year:'至元年间',month:'三月',day:'初七',season:'春',solar:'惊蛰后',location:'大都 · 城南',origin:'大都乡里',role:'驿站杂役'},
-  '明':{era:'明',year:'万历年间',month:'三月',day:'初七',season:'春',solar:'惊蛰后',location:'南京 · 秦淮',origin:'应天府乡里',role:'账房'},
-  '清末':{era:'清',year:'光绪年间',month:'三月',day:'初七',season:'春',solar:'惊蛰后',location:'上海 · 城南',origin:'江南乡里',role:'新式学堂学生'}
-};
-const baseState={mode:'strict', character:{name:'黄伟',age:14,gender:'男',origin:'南阳邓县',location:'荆州 · 江陵城',role:'郡府书吏',health:'健康',education:'粗通经史',marital:'未婚',family:'母亲李氏（在襄阳）'}, time:{era:'东汉',year:'初平二年',month:'三月',day:'初七',season:'春',solar:'惊蛰后',hour:'辰时',dayIndex:66}, currency:950, inventory:[{name:'祖传角弓',qty:1,condition:'良好'},{name:'短刀',qty:1,condition:'可用'},{name:'干粮袋',qty:1,condition:'新'}], assets:[{name:'租住房屋',value:'月租 40钱'},{name:'书吏月俸',value:'约 120钱'}], relationships:[{name:'黄承彦',relation:'族伯父 / 师长',affinity:'敬重',trust:'信任',score:76,note:'在襄阳教导你读书习武'},{name:'诸葛亮',relation:'挚友',affinity:'亲近',trust:'相知',score:64,note:'偶有书信往来'}], goals:[{text:'在江陵真正立足',done:false},{text:'查清秋后征粮的消息',done:false},{text:'维持与郡府的关系',done:false}], known:['江陵郡府','南市','江陵码头','襄阳学舍'], logs:[], suggestions:['去南市打听粮价','拜访郡府主簿','给母亲写一封家书']};
-let state=loadState()||structuredClone(baseState); let pace='immersive';
-function loadState(){try{return JSON.parse(localStorage.getItem(STORAGE))}catch{return null}}
-function saveState(){state.savedAt=Date.now();localStorage.setItem(STORAGE,JSON.stringify(state));$('#saveTime').textContent='刚刚'}
-function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2200)}
-function formatTime(){return `${state.time.year} · ${state.time.month}${state.time.day} · ${state.time.hour}`}
-function renderSetup(){ $('#setupView').classList.remove('hidden'); $('#gameView').classList.add('hidden') }
-function renderGame(){ $('#setupView').classList.add('hidden'); $('#gameView').classList.remove('hidden'); $('#profileName').textContent=state.character.name; $('#portraitChar').textContent=state.character.name[0]||'人'; $('#profileRole').textContent=`${state.character.role} · ${state.character.age}岁`; $('#headerTime').textContent=formatTime(); $('#worldLabel').textContent=`${state.time.era} · ${state.character.location.split(' · ').slice(-1)[0]}`; $('#eraName').textContent=state.time.era; $('#eraYear').textContent=state.time.year; $('#dateText').textContent=`${state.time.month}${state.time.day}`; $('#seasonText').textContent=`${state.time.season} · ${state.time.solar}`; $('#locationText').textContent=state.character.location; $('#locationSummary').textContent=state.character.location; $('#locationDescription').textContent=state.world?.economy||'城中有官府、市集、作坊与往来道路。你只能知道亲自接触过的地方。'; $('#currencyValue').textContent=state.currency.toLocaleString(); renderGoals(); renderInventoryPreview(); renderStory(); renderRight('status'); }
-function renderGoals(){const list=$('#goalList');list.innerHTML=''; state.goals.forEach((g,i)=>{const el=document.createElement('div');el.className='goal'+(g.done?' done':'');el.textContent=g.text;el.onclick=()=>{g.done=!g.done;saveState();renderGoals();toast(g.done?'目标已标记完成':'已重新开启目标')};list.appendChild(el)});$('#goalCount').textContent=String(state.goals.filter(g=>!g.done).length).padStart(2,'0')}
-function renderInventoryPreview(){const el=$('#inventoryPreview');el.innerHTML=state.inventory.slice(0,3).map(i=>`<div class="item-row"><span>${i.name}</span><span>×${i.qty}</span></div>`).join('')}
-function renderStory(){const stream=$('#storyStream');stream.innerHTML='';state.logs.forEach((l,idx)=>{const card=document.createElement('article');card.className=`story-card ${idx===state.logs.length-1?'latest ':''}${l.pace||''}`;card.innerHTML=`<div class="story-meta"><b>${l.time}</b><span>${l.location} · ${l.duration||'片刻'}</span></div>${idx===state.logs.length-1?'<span class="tag">本次行动</span>':''}<p>${l.text}</p>`;stream.appendChild(card)});stream.scrollTop=stream.scrollHeight;$('#suggestionBar').innerHTML=state.suggestions.map(s=>`<button class="suggestion" data-action="${s}">${s}</button>`).join('');$$('.suggestion').forEach(b=>b.onclick=()=>{$('#actionInput').value=b.dataset.action;$('#actionInput').focus()})}
-function dayAdvance(days){const monthNames=['正月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];const dayNames=['初一','初二','初三','初四','初五','初六','初七','初八','初九','初十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十','廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十'];const monthDays=[31,30,31,30,31,30,31,30,31,30,31,30];let month=Math.max(1,monthNames.indexOf(state.time.month)+1);let day=Math.max(1,dayNames.indexOf(state.time.day)+1);for(let i=0;i<days;i++){day++;if(day>monthDays[(month-1)%12]){day=1;month++;if(month>12){month=1;state.time.year='初平三年'}}}state.time.month=monthNames[month-1];state.time.day=dayNames[day-1]||'初一';state.time.season=month<=3?'春':month<=6?'夏':month<=9?'秋':'冬';state.time.solar=month===3?'惊蛰后':month===4?'清明前':month===7?'大暑后':'节气交替间';state.time.hour='辰时'}
-function classifyAction(input){const s=input.toLowerCase();if(/粮价|南市|买卖|货|商/.test(s))return {kind:'market',days:1};if(/主簿|郡府|文书|公廨|拜访/.test(s))return {kind:'office',days:1};if(/家书|母亲|襄阳|写信/.test(s))return {kind:'letter',days:2};if(/练|弓|武/.test(s))return {kind:'practice',days:1};if(/走|去|前往|码头|学舍/.test(s))return {kind:'move',days:1};if(/睡|休息|继续生活|等待/.test(s))return {kind:'rest',days:3};return {kind:'general',days:1}}
-function settle(input){const {kind,days}=classifyAction(input);dayAdvance(days);let text='',duration=days===1?'一个时辰':`${days}日`;if(kind==='market'){state.currency-=12;text=`你从郡府散值后绕到南市。春粮尚未大量入市，几家粮行的斗米价格比上月高了两钱。卖炊饼的老陈认出你是郡府书吏，压低声音说，北面几个乡的征粮文书已经下到里正手里。你没有贸然追问，只记下了粮价与传言的来源。`;state.suggestions=['去问粮行掌柜征粮文书','把消息告诉同僚','回住处整理账目'];state.goals[1].done=true}else if(kind==='office'){text=`你在郡府公廨找到主簿曹掾。案牍堆在矮几上，竹简与木牍混杂，墨迹尚未干透。你替他誊清了一份江防巡检名册，顺势问起秋后征粮。曹掾只说“上面的意思还未定”，却让你留意月底的仓曹会集。事情没有定论，但你在这桩小差事里留下了可靠的印象。`;state.suggestions=['月底去仓曹会集','整理江防名册','拜访同乡里正'];state.currency+=8;state.goals[2].done=true}else if(kind==='letter'){state.currency-=5;text=`你买来一束薄竹简和一小罐松烟墨，在住处给母亲写信。信中没有提及城里关于征粮的传闻，只说江陵水路平安、你已找到差事。写到黄承彦时，你停笔片刻，想起襄阳学舍檐下的旧日功课。信托给南行的脚夫，能否平安送到，还要看这几日的水路。`;state.suggestions=['等候回信','去学舍听讲','练习弓术']}else if(kind==='practice'){text=`你把角弓带到城外堤岸。春风从江面卷来，前几箭都偏向芦苇深处。你调整站姿，反复练了三轮，手掌磨出薄薄的红痕。弓弦的声音让心绪安定下来，至少在这件事上，进步来自自己的耐心，而非谁的恩典。`;state.suggestions=['回城处理文书','去码头看水军操演','继续练习']}else if(kind==='move'){text=`你沿着江陵城的石板路向${/码头/.test(input)?'码头':'学舍'}走去。街上车辙压过潮湿的泥，挑担的脚夫和贩布的商人互相让路。你看见一队水军押着木料入营，没有人注意到你；你只是把这段路和沿途的铺面记进了自己的认知地图。`;state.suggestions=['回郡府当值','去南市吃饭','记下沿途铺面']}else if(kind==='rest'){text=`你把门闩插好，收起角弓，在窄榻上睡了三日。城中的声音并未因你的休息而停下：水军照常操演，邻巷有人家办了丧事，郡府的更鼓按时响起。醒来时，春寒已经淡了些，你的身体恢复得不错，但错过了几次与人照面的机会。`;state.suggestions=['去郡府当值','打听这三日的消息','整理行囊']}else{text=`你用一个时辰处理了眼前的琐事。事情没有立刻改变你的处境，却让这一天留下了可追溯的痕迹。世界按自己的秩序继续运转，远处的消息尚未传到江陵，眼下能掌握的只有你亲手做出的选择。`;state.suggestions=['去南市打听消息','拜访郡府主簿','回住处休息']}
-const log={time:formatTime(),location:state.character.location,duration,text,pace:pace==='immersive'?'':pace};state.logs.push(log);if(state.logs.length>30)state.logs.shift();saveState();renderGame();toast('行动已结算，人生已自动保存')}
-function renderRight(tab){const el=$('#rightContent');if(tab==='status'){el.innerHTML=`<h2 class="detail-title">${state.character.name} · 人物档案</h2><div class="stat-grid"><div class="stat"><label>年龄</label><b>${state.character.age}岁</b></div><div class="stat"><label>身体</label><b>${state.character.health}</b></div><div class="stat"><label>财富</label><b>${state.currency.toLocaleString()}钱</b></div><div class="stat"><label>婚姻</label><b>${state.character.marital}</b></div></div><div class="info-group"><h3>身份与出身</h3><div class="info-line"><span>籍贯</span><span>${state.character.origin}</span></div><div class="info-line"><span>当前身份</span><span>${state.character.role}</span></div><div class="info-line"><span>教育</span><span>${state.character.education}</span></div><div class="info-line"><span>户籍</span><span>民籍</span></div></div><div class="info-group"><h3>家庭</h3><div class="info-line"><span>母亲</span><span>李氏 · 在襄阳</span></div><div class="info-line"><span>家族</span><span>黄氏南阳分支</span></div></div>`}else if(tab==='relations'){el.innerHTML=`<h2 class="detail-title">关系网络</h2>${state.relationships.map(r=>`<div class="relation-card"><div><b>${r.name}</b><small>${r.relation}</small><small>${r.note}</small></div><div class="relation-score">${r.affinity}<i>信任 ${r.score}</i></div></div>`).join('')}<div class="info-group"><h3>关系规则</h3><p class="map-note">关系由亲疏、信任、恩义与义务共同构成。一次行动可能只改变其中一项。</p></div>`}else{el.innerHTML=`<h2 class="detail-title">认知地图</h2><div class="map-card"><span class="map-node north">郡府</span><span class="map-node main">江陵城</span><span class="map-node south">南市</span><span class="map-node east">码头</span></div><p class="map-note">你只看见自己亲自到过、听过或从可靠人物处得知的地方。地图不会显示世界全貌。</p><div class="info-group"><h3>已知地点</h3>${state.known.map(x=>`<div class="info-line"><span>⌖</span><span>${x}</span></div>`).join('')}</div>`}}
-function showInventory(){const d=$('#inventoryDialog');$('#inventoryDetail').innerHTML=`<div class="dialog-body">${state.inventory.map(i=>`<div class="asset-line"><span>${i.name} ×${i.qty}</span><b>${i.condition}</b></div>`).join('')}<div class="asset-line"><span>现金</span><b>${state.currency.toLocaleString()} 铜钱</b></div>${state.assets.map(i=>`<div class="asset-line"><span>${i.name}</span><b>${i.value}</b></div>`).join('')}</div>`;d.showModal()}
-$$('.mode-option').forEach(b=>b.onclick=()=>{$$('.mode-option').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')});
-$('#startBtn').onclick=()=>{state=structuredClone(baseState);state.mode=$('.mode-option.selected').dataset.mode;const preset=eraPresets[$('#eraSelect').value]||eraPresets['东汉末年'];const selectedRole=$('#charRole').value;const selectedOrigin=$('#charOrigin').value;state.time={...state.time,...preset,dayIndex:66};state.character={...state.character,name:$('#charName').value.trim()||'无名',age:Number($('#charAge').value)||14,gender:$('#charGender').value,origin:(selectedOrigin==='南阳邓县'&&preset.origin!=='南阳邓县')?preset.origin:selectedOrigin,role:(selectedRole==='郡府书吏'&&preset.role!=='郡府书吏')?preset.role:selectedRole,location:preset.location};state.goals=[{text:`在${state.character.location.split(' · ').slice(-1)[0]}真正立足`,done:false},{text:'查清近期征收与市场消息',done:false},{text:'维持与身边人的关系',done:false}];state.world={politics:'地方政权与豪强并存，消息沿驿路与水路传递',law:'依时代法制处理身份、财产与纠纷',economy:'粮食、布帛与当时通行货币构成日常交换'};state.logs=[{time:formatTime(),location:state.character.location,duration:'初始',text:`你在${state.time.year}的${state.time.season}醒来。${state.character.location}有自己的秩序：市集开门，官府与作坊按时运转，远方的战事和粮价沿着道路缓慢传来。你叫${state.character.name}，${state.character.age}岁，出身${state.character.origin}，眼下的身份是${state.character.role}。历史不会因你的出生而停下脚步，今天，你可以决定先迈出哪一步。`}];saveState();renderGame()};
-$('#actionForm').onsubmit=e=>{e.preventDefault();const input=$('#actionInput').value.trim();if(!input)return;settle(input);$('#actionInput').value=''};$('#saveBtn').onclick=()=>{saveState();toast('已保存当前人生状态')};$('#exportBtn').onclick=()=>{const payload={title:'历史人生模拟器 · 人生档案',exportedAt:new Date().toLocaleString('zh-CN'),mode:modeLabels[state.mode],character:state.character,time:state.time,currency:state.currency,inventory:state.inventory,assets:state.assets,relationships:state.relationships,logs:state.logs};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));a.download=`${state.character.name}_人生档案.json`;a.click();URL.revokeObjectURL(a.href);toast('只读人生档案已导出')};$('#newGameBtn').onclick=()=>{if(confirm('结束当前人生并回到创建页面？')){localStorage.removeItem(STORAGE);state=structuredClone(baseState);renderSetup()}};$('#inventoryBtn').onclick=showInventory;$$('.close-dialog').forEach(b=>b.onclick=()=>$('#inventoryDialog').close());$$('.pace').forEach(b=>b.onclick=()=>{$$('.pace').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');pace=b.dataset.pace});$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');renderRight(b.dataset.tab)});
-if(state.aiInitialized&&state.logs&&state.logs.length)renderGame();else renderSetup();
+// ============================================================
+//  历史人生模拟器 · 前端主逻辑（纯 AI 驱动）
+//  版本：V1.2 · 包含节奏切换反馈 + 行动重试机制
+//  依赖：后端 FastAPI 运行在 http://127.0.0.1:8000
+// ============================================================
 
-// AI-gated initialization: no local fallback is allowed for starting a life.
+// ---- 工具函数 ----
+const $ = (s, root = document) => root.querySelector(s);
+const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+
+// ---- 常量 ----
+const STORAGE = 'history-life-final-v12-save';
 const API_BASE = 'http://127.0.0.1:8000';
-const yearChoices = {
-  '夏': [['-2070','约前2070年 · 夏建立'],['-1900','约前1900年 · 夏末传说时期']],
-  '商': [['-1600','约前1600年 · 商建立'],['-1250','约前1250年 · 武丁时期'],['-1046','前1046年 · 商周之际']],
-  '西周': [['-1046','前1046年 · 西周建立'],['-841','前841年 · 共和元年'],['-771','前771年 · 西周末']],
-  '春秋战国': [['-770','前770年 · 春秋开始'],['-551','前551年 · 孔子出生前后'],['-356','前356年 · 商鞅变法时期'],['-221','前221年 · 秦统一前夕']],
-  '秦汉': [['-221','前221年 · 秦统一'],['-202','前202年 · 西汉建立'],['9','公元9年 · 新朝'],['25','公元25年 · 东汉建立']],
-  '东汉末年': [['184','中平元年（公元184年）'],['189','中平六年（公元189年）'],['191','初平二年（公元191年）'],['196','建安元年（公元196年）'],['208','建安十三年（公元208年）']],
-  '三国两晋': [['220','黄初元年（公元220年）'],['280','太康元年（公元280年）'],['317','建武元年（公元317年）'],['383','太元八年（公元383年）']],
-  '南北朝隋唐': [['420','元熙二年（公元420年）'],['581','开皇元年（公元581年）'],['618','武德元年（公元618年）'],['713','开元元年（公元713年）'],['755','天宝十四年（公元755年）']],
-  '五代宋辽金': [['907','天祐四年（公元907年）'],['960','建隆元年（公元960年）'],['1038','宝元元年（公元1038年）'],['1127','靖康二年（公元1127年）'],['1161','绍兴三十一年（公元1161年）']],
-  '元': [['1271','至元八年（公元1271年）'],['1279','至元十六年（公元1279年）'],['元末','至正年间 · 元末']],
-  '明': [['1368','洪武元年（公元1368年）'],['1403','永乐元年（公元1403年）'],['1449','正统十四年（公元1449年）'],['1644','崇祯十七年（公元1644年）']],
-  '清末': [['1644','顺治元年（公元1644年）'],['康熙','康熙年间'],['1840','道光二十年（公元1840年）'],['1894','光绪二十年（公元1894年）'],['1911','宣统三年（公元1911年）']]
+const modeLabels = { strict: '严格历史', restore: '历史还原', legend: '历史传说', free: '自由行动' };
+
+// ---- 基础状态模板 ----
+const baseState = {
+  sessionId: null,
+  mode: 'restore',
+  character: {
+    name: '无名',
+    age: 14,
+    gender: '男',
+    origin: '未知',
+    location: '未知',
+    role: '百姓',
+    personality: '',
+    health: '健康',
+    education: '粗通文字',
+    marital: '未婚',
+    family: ''
+  },
+  time: {
+    era: '',
+    year: '',
+    month: '正月',
+    day: '初一',
+    season: '春',
+    solar: '',
+    hour: '辰时',
+    dayIndex: 0
+  },
+  currency: 0,
+  inventory: [],
+  assets: [],
+  relationships: [],
+  goals: [],
+  current_goals: [],
+  completed_goals: [],
+  known: [],
+  knownMap: { currentLocation: '', knownPlaces: [] },
+  worldDynamics: { local: '', regional: '', national: '', nearby: '' },
+  logs: [],
+  suggestions: [],
+  aiInitialized: false
 };
-function setupError(message){let box=$('#aiError');if(!box){box=document.createElement('div');box.id='aiError';box.className='ai-error';$('#startBtn').after(box)}box.textContent=message;box.hidden=false}
-function clearSetupError(){const box=$('#aiError');if(box)box.hidden=true}
-function setResolveStatus(message,kind=''){const el=$('#yearResolveStatus');if(!el)return;el.textContent=message;el.className=`resolve-status ${kind}`}
-async function apiJson(path, options={}){let response;try{response=await fetch(`${API_BASE}${path}`,options)}catch(error){throw new Error('AI配置失败：无法连接后端 AI 服务，请先启动 backend/main.py')};let data={};try{data=await response.json()}catch(error){throw new Error('AI配置失败：后端返回了无效响应')};if(!response.ok)throw new Error(data.detail||`AI配置失败：请求失败（${response.status}）`);return data}
-async function checkAiHealth(){const badges=[$('#aiModelBadge'),$('#gameAiModelBadge')].filter(Boolean);try{const data=await apiJson('/api/health');const model=data.model_name||'gpt-4o-mini';badges.forEach(el=>{el.textContent=`AI模型：${model} · ${data.ai_configured?'已连接':'未配置'}`;el.classList.toggle('ok',!!data.ai_configured);el.classList.toggle('error',!data.ai_configured)});if(!data.ai_configured)setupError('AI配置失败：后端未配置 OPENAI_API_KEY，不能开始人生')}catch(error){badges.forEach(el=>{el.textContent='AI模型：gpt-4o-mini · 连接失败';el.classList.add('error')});setupError(error.message)}}
-function populateYears(){const era=$('#eraSelect').value;const select=$('#birthYear');const current=select.value;select.innerHTML='';(yearChoices[era]||yearChoices['东汉末年']).forEach(([value,label])=>{const o=document.createElement('option');o.value=value;o.textContent=label;select.appendChild(o)});const ai=document.createElement('option');ai.value='';ai.textContent='由 AI 按历史事件确定';select.appendChild(ai);if([...select.options].some(o=>o.value===current))select.value=current}
-async function resolveYear(showStatus=true){
-  const eventText=$('#historyEvent').value.trim(); const selected=$('#birthYear').value; const era=$('#eraSelect').value;
-  if(!eventText&&!selected){if(showStatus)setResolveStatus('请先选择年份或输入历史事件','error');throw new Error('AI配置失败：请选择具体年份或输入历史事件')}
-  if(showStatus)setResolveStatus('AI 正在核对历史时间…');
-  const data=await apiJson('/api/time/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({era,selected_year:selected,historical_event:eventText||'确认所选年份与时代一致'})});
-  if(!data.year||!data.year_label)throw new Error('AI配置失败：AI未返回有效年份');
-  let option=[...$('#birthYear').options].find(o=>o.value===String(data.year));if(!option){option=document.createElement('option');option.value=String(data.year);option.textContent=`${data.year_label}（${data.year}）`;$('#birthYear').appendChild(option)}$('#birthYear').value=String(data.year);setResolveStatus(`已确定：${data.year_label}（${data.year}）`,'success');return data;
+
+// ---- 状态管理 ----
+let state = loadState() || structuredClone(baseState);
+let pace = 'immersive';
+let entryCounter = 0;
+let lastFailedInput = null;
+let lastFailedEntryId = null;
+let isProcessing = false;
+
+function loadState() {
+  try { return JSON.parse(localStorage.getItem(STORAGE)); } catch { return null; }
 }
-$('#eraSelect').addEventListener('change',()=>{populateYears();setResolveStatus('');clearSetupError()});
-$('#birthYear').addEventListener('change',()=>{if($('#birthYear').value)setResolveStatus('已选择年份，可直接开始')});
-$('#historyEvent').addEventListener('input',()=>{setResolveStatus('');clearSetupError()});
-$('#resolveYearBtn').onclick=async()=>{const button=$('#resolveYearBtn');button.disabled=true;clearSetupError();try{await resolveYear()}catch(error){setResolveStatus(error.message,'error');setupError(error.message)}finally{button.disabled=false}};
-populateYears();
-checkAiHealth();
-$('#startBtn').onclick=async()=>{
-  const button=$('#startBtn'); const label=button.querySelector('span'); const original=label.textContent; button.disabled=true;label.textContent='AI 正在建立世界…';clearSetupError();
-  try{
-    const time=await resolveYear(false); const mode=$('.mode-option.selected').dataset.mode; const character={name:$('#charName').value.trim()||'无名',age:Number($('#charAge').value)||14,gender:$('#charGender').value,origin:$('#charOrigin').value||'',role:$('#charRole').value,history_event:$('#historyEvent').value.trim()};
-    const data=await apiJson('/api/game/init',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,era:$('#eraSelect').value,year:`${time.year_label}（${time.year}）`,character_type:$('#characterType').value,character})});if(!data.initial_state)throw new Error('AI配置失败：未返回有效的人生初始状态，不能开始人生');
-    const preset=eraPresets[$('#eraSelect').value]||eraPresets['东汉末年'];const aiState=data.initial_state||{};state={...structuredClone(baseState),...aiState,aiInitialized:true,mode,character:{...baseState.character,...(aiState.character||{}),...character,location:aiState.character?.location||preset.location},time:{...baseState.time,...(aiState.time||{}),era:aiState.time?.era||preset.era,year:time.year_label,month:aiState.time?.month||preset.month,day:aiState.time?.day||preset.day,season:aiState.time?.season||preset.season,solar:aiState.time?.solar||preset.solar,hour:aiState.time?.hour||'辰时'},world:aiState.world||{politics:'时代政治格局由 AI 初始化',law:'法律与身份按时代结算',economy:'货币、粮食与市场按时代结算'},goals:aiState.goals||structuredClone(baseState.goals),inventory:aiState.inventory||structuredClone(baseState.inventory),assets:aiState.assets||structuredClone(baseState.assets),relationships:aiState.relationships||structuredClone(baseState.relationships),suggestions:data.suggested_actions||structuredClone(baseState.suggestions),logs:[]};state.logs=[{time:formatTime(),location:state.character.location,duration:'初始',text:data.character_intro||`你在${state.time.year}开始了这一生。世界已经建立，接下来每一个行动都将推进时间并留下不可回滚的记录。`}];saveState();renderGame();toast('AI 世界初始化完成，人生开始');
-  }catch(error){setupError(error.message.startsWith('AI配置失败')?error.message:`AI配置失败：${error.message}`);setResolveStatus('无法开始人生','error');renderSetup()}finally{button.disabled=false;label.textContent=original}
+
+function saveState() {
+  state.savedAt = Date.now();
+  localStorage.setItem(STORAGE, JSON.stringify(state));
+  const el = $('#saveTime');
+  if (el) el.textContent = '刚刚';
+}
+
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function generateEntryId() {
+  return `entry_${++entryCounter}_${Date.now()}`;
+}
+
+function formatTime() {
+  const t = state.time;
+  return `${t.year} · ${t.month}${t.day} · ${t.hour}`;
+}
+
+function parseInitialRelationships(raw) {
+  return raw
+    .split(/[；;，\n]+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .map(item => {
+      const match = item.match(/^(.+?)[（(]([^（）()]+)[）)]$/);
+      const name = (match ? match[1] : item).trim();
+      const relation = (match ? match[2] : '相识').trim();
+      return {
+        name,
+        relation,
+        affinity: '亲近',
+        trust: '初始',
+        score: 60,
+        note: '玩家创建时设定'
+      };
+    })
+    .filter(relation => relation.name);
+}
+
+function mergeRelationships(aiRelationships, playerRelationships) {
+  const byName = new Map();
+  (aiRelationships || []).forEach(relation => {
+    if (relation?.name) byName.set(String(relation.name).trim(), relation);
+  });
+  (playerRelationships || []).forEach(relation => {
+    const name = relation.name.trim();
+    if (!name) return;
+    byName.set(name, { ...(byName.get(name) || {}), ...relation });
+  });
+  return [...byName.values()];
+}
+
+// ---- 视图切换 ----
+function renderSetup() {
+  $('#setupView').classList.remove('hidden');
+  $('#gameView').classList.add('hidden');
+}
+
+function renderGame() {
+  $('#setupView').classList.add('hidden');
+  $('#gameView').classList.remove('hidden');
+
+  const c = state.character;
+  const t = state.time;
+  $('#profileName').textContent = c.name;
+  $('#portraitChar').textContent = c.name[0] || '人';
+  $('#profileRole').textContent = `${c.role} · ${c.age}岁`;
+  $('#headerTime').textContent = formatTime();
+  $('#worldLabel').textContent = `${t.era} · ${c.location.split(' · ').slice(-1)[0]}`;
+  $('#eraName').textContent = t.era;
+  $('#eraYear').textContent = t.year;
+  $('#dateText').textContent = `${t.month}${t.day}`;
+  $('#seasonText').textContent = `${t.season} · ${t.solar}`;
+  $('#locationText').textContent = c.location;
+  $('#locationSummary').textContent = c.location;
+  $('#locationDescription').textContent = state.worldDynamics?.local || '你所在的地方自有其秩序。';
+  $('#currencyValue').textContent = state.currency.toLocaleString();
+
+  renderGoals();
+  renderInventoryPreview();
+  renderStory();
+  renderRight('status');
+}
+
+// ---- 目标渲染 ----
+function renderGoals() {
+  const list = $('#goalList');
+  list.innerHTML = '';
+  const goals = state.current_goals || [];
+  goals.forEach((g, i) => {
+    const el = document.createElement('div');
+    el.className = 'goal';
+    el.textContent = g;
+    el.onclick = () => {
+      $('#actionInput').value = `我想完成这个小目标：${g}`;
+      $('#actionInput').focus();
+    };
+    list.appendChild(el);
+  });
+  const done = state.completed_goals || [];
+  done.forEach(g => {
+    const el = document.createElement('div');
+    el.className = 'goal done';
+    el.textContent = `✓ ${g}`;
+    list.appendChild(el);
+  });
+  const count = goals.length;
+  const el = $('#goalCount');
+  if (el) el.textContent = String(count).padStart(2, '0');
+}
+
+function renderInventoryPreview() {
+  const el = $('#inventoryPreview');
+  const items = state.inventory || [];
+  el.innerHTML = items.slice(0, 3).map(i =>
+      `<div class="item-row"><span>${i.name}</span><span>×${i.qty}</span></div>`
+  ).join('');
+  if (items.length === 0) el.innerHTML = '<div class="item-row" style="color:#b0a08a;">空</div>';
+}
+
+// ---- 故事流渲染（含重试按钮） ----
+function renderStory() {
+  const stream = $('#storyStream');
+  stream.innerHTML = '';
+  const logs = state.logs || [];
+
+  logs.forEach((l, idx) => {
+    const card = document.createElement('article');
+    let paceClass = l.pace || '';
+    let extraHtml = '';
+
+    if (l.type === 'error') {
+      paceClass = 'error-entry';
+      extraHtml = `
+        <div class="error-actions">
+          <button class="retry-btn" data-retry-input="${(l.retryInput || '').replace(/"/g, '&quot;')}">↻ 重试</button>
+          <button class="dismiss-btn" data-entry-id="${l.id || ''}">✕ 忽略</button>
+          <span class="error-detail">${l.errorMessage || ''}</span>
+        </div>
+      `;
+    }
+
+    if (l.type === 'system' || l.type === 'action') {
+      paceClass = l.type === 'system' ? 'system-entry' : 'action';
+    }
+
+    card.className = `story-card ${idx === logs.length - 1 ? 'latest ' : ''}${paceClass}`;
+
+    const showMeta = l.type !== 'system' || l.text.startsWith('📌');
+    const isLatestTag = idx === logs.length - 1 && l.type !== 'error';
+
+    card.innerHTML = `
+      ${showMeta ? `<div class="story-meta"><b>${l.time}</b><span>${l.location} · ${l.duration || '片刻'}</span></div>` : ''}
+      ${isLatestTag ? '<span class="tag">本次行动</span>' : ''}
+      <p>${l.text}</p>
+      ${extraHtml}
+    `;
+    stream.appendChild(card);
+  });
+
+  stream.scrollTop = stream.scrollHeight;
+
+  // 绑定重试按钮
+  $$('.retry-btn').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.preventDefault();
+      const input = btn.dataset.retryInput;
+      if (input) {
+        btn.disabled = true;
+        btn.textContent = '⏳ 重试中...';
+        try {
+          const errorEntry = logs.find(l => l.retryInput === input && l.type === 'error');
+          if (errorEntry && errorEntry.id) {
+            state.logs = state.logs.filter(l => l.id !== errorEntry.id);
+          }
+          lastFailedInput = input;
+          lastFailedEntryId = null;
+          await retryAction();
+        } catch (e) {
+          console.error('重试失败:', e);
+          toast('重试失败，请手动重新输入');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '↻ 重试';
+        }
+      }
+    };
+  });
+
+  // 绑定忽略按钮
+  $$('.dismiss-btn').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.entryId;
+      if (id) {
+        state.logs = state.logs.filter(l => l.id !== id);
+        saveState();
+        renderStory();
+        toast('已忽略错误');
+      }
+    };
+  });
+
+  // 建议行动
+  const bar = $('#suggestionBar');
+  const actions = state.suggestions || [];
+  bar.innerHTML = actions.map(s =>
+      `<button class="suggestion" data-action="${s}">${s}</button>`
+  ).join('');
+  $$('.suggestion').forEach(b => b.onclick = () => {
+    $('#actionInput').value = b.dataset.action;
+    $('#actionInput').focus();
+  });
+}
+
+// ---- 右侧面板 ----
+function renderRight(tab) {
+  const el = $('#rightContent');
+  if (tab === 'status') {
+    const c = state.character;
+    el.innerHTML = `
+      <h2 class="detail-title">${c.name} · 人物档案</h2>
+      <div class="stat-grid">
+        <div class="stat"><label>年龄</label><b>${c.age}岁</b></div>
+        <div class="stat"><label>身体</label><b>${c.health || '健康'}</b></div>
+        <div class="stat"><label>财富</label><b>${(state.currency || 0).toLocaleString()}钱</b></div>
+        <div class="stat"><label>婚姻</label><b>${c.marital || '未婚'}</b></div>
+      </div>
+      <div class="info-group"><h3>身份与出身</h3>
+        <div class="info-line"><span>籍贯</span><span>${c.origin || '未知'}</span></div>
+        <div class="info-line"><span>当前身份</span><span>${c.role || '百姓'}</span></div>
+        <div class="info-line"><span>性格</span><span>${c.personality || '未设定'}</span></div>
+        <div class="info-line"><span>教育</span><span>${c.education || '未记载'}</span></div>
+        <div class="info-line"><span>户籍</span><span>民籍</span></div>
+      </div>
+      <div class="info-group"><h3>家庭</h3>
+        <div class="info-line"><span>家庭</span><span>${c.family || '未记载'}</span></div>
+      </div>
+      <div class="info-group"><h3>世界动态</h3>
+        <div class="info-line"><span>本地</span><span>${state.worldDynamics?.local || '暂无'}</span></div>
+        <div class="info-line"><span>地方</span><span>${state.worldDynamics?.regional || '暂无'}</span></div>
+        <div class="info-line"><span>国家</span><span>${state.worldDynamics?.national || '暂无'}</span></div>
+      </div>
+    `;
+  } else if (tab === 'relations') {
+    const rels = state.relationships || [];
+    el.innerHTML = `
+      <h2 class="detail-title">关系网络</h2>
+      ${rels.length === 0 ? '<p style="color:#8a7a66;">尚未建立关系</p>' :
+        rels.map(r => `
+          <div class="relation-card">
+            <div><b>${r.name}</b><small>${r.relation || ''}</small><small>${r.note || ''}</small></div>
+            <div class="relation-score">${r.affinity || ''}<i>${r.trust || ''}</i></div>
+          </div>
+        `).join('')}
+      <div class="info-group"><h3>关系规则</h3>
+        <p class="map-note">关系由亲疏、信任、恩义与义务共同构成。一次行动可能只改变其中一项。</p>
+      </div>
+    `;
+  } else {
+    const map = state.knownMap || { currentLocation: '未知', knownPlaces: [] };
+    el.innerHTML = `
+      <h2 class="detail-title">认知地图</h2>
+      <div class="map-card">
+        <span class="map-node main">${map.currentLocation || '未知'}</span>
+      </div>
+      <p class="map-note">你只看见自己亲自到过、听过或从可靠人物处得知的地方。地图不会显示世界全貌。</p>
+      <div class="info-group"><h3>已知地点</h3>
+        ${(map.knownPlaces || []).map(x => `<div class="info-line"><span>⌖</span><span>${x}</span></div>`).join('') || '<div style="color:#8a7a66;">尚无已知地点</div>'}
+      </div>
+    `;
+  }
+}
+
+// ---- 背包 ----
+function showInventory() {
+  const d = $('#inventoryDialog');
+  const detail = $('#inventoryDetail');
+  const items = state.inventory || [];
+  const assets = state.assets || [];
+  detail.innerHTML = `
+    <div class="dialog-body">
+      ${items.length === 0 ? '<div style="color:#8a7a66;">背包为空</div>' :
+      items.map(i => `<div class="asset-line"><span>${i.name} ×${i.qty}</span><b>${i.condition || '良好'}</b></div>`).join('')}
+      <div class="asset-line"><span>现金</span><b>${(state.currency || 0).toLocaleString()} 铜钱</b></div>
+      ${assets.length > 0 ? assets.map(i => `<div class="asset-line"><span>${i.name}</span><b>${i.value || ''}</b></div>`).join('') : ''}
+    </div>
+  `;
+  d.showModal();
+}
+
+// ---- API 交互 ----
+async function apiJson(path, options = {}) {
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, options);
+  } catch (error) {
+    throw new Error('AI配置失败：无法连接后端 AI 服务，请先启动 backend/main.py');
+  }
+  let data = {};
+  try {
+    data = await response.json();
+  } catch (error) {
+    throw new Error('AI配置失败：后端返回了无效响应');
+  }
+  if (!response.ok) throw new Error(data.detail || `AI配置失败：请求失败（${response.status}）`);
+  return data;
+}
+
+// ---- 健康检查 ----
+async function checkAiHealth() {
+  const badges = [$('#aiModelBadge'), $('#gameAiModelBadge')].filter(Boolean);
+  try {
+    const data = await apiJson('/api/health');
+    const model = data.model_name || 'gpt-5.6-terra';
+    badges.forEach(el => {
+      el.textContent = `AI模型：${model} · ${data.ai_configured ? '已连接' : '未配置'}`;
+      el.classList.toggle('ok', !!data.ai_configured);
+      el.classList.toggle('error', !data.ai_configured);
+    });
+    if (!data.ai_configured) setupError('AI配置失败：后端未配置 OPENAI_API_KEY，不能开始人生');
+  } catch (error) {
+    badges.forEach(el => {
+      el.textContent = 'AI模型：gpt-5.6-terra · 连接失败';
+      el.classList.add('error');
+    });
+    setupError(error.message);
+  }
+}
+
+// ---- 年份解析 ----
+async function resolveYear(showStatus = true) {
+  const eventText = $('#historyEvent').value.trim();
+  const era = $('#eraSelect').value;
+  const selectedYear = $('#birthYear')?.value || '';
+  if (!eventText) {
+    if (showStatus) setResolveStatus('请先输入历史事件', 'error');
+    throw new Error('AI配置失败：请先输入历史事件');
+  }
+  if (showStatus) setResolveStatus('AI 正在核对历史时间…');
+  const data = await apiJson('/api/time/resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ era, selected_year: selectedYear, historical_event: eventText })
+  });
+  if (!data.year || !data.year_label) throw new Error('AI配置失败：AI未返回有效年份');
+  setResolveStatus(`已确定：${data.year_label}（${data.year}）`, 'success');
+  return data;
+}
+
+// ---- 错误/状态显示 ----
+function setupError(message) {
+  let box = $('#aiError');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'aiError';
+    box.className = 'ai-error hidden';
+    $('#startBtn').after(box);
+  }
+  box.textContent = message;
+  box.hidden = false;
+}
+
+function clearSetupError() {
+  const box = $('#aiError');
+  if (box) box.hidden = true;
+}
+
+function setResolveStatus(message, kind = '') {
+  const el = $('#yearResolveStatus');
+  if (!el) return;
+  el.textContent = message;
+  el.className = `resolve-status ${kind}`;
+}
+
+// ---- 加载时代列表 ----
+async function loadEraList() {
+  try {
+    const data = await apiJson('/api/eras');
+    const eras = data.eras || [];
+    const select = $('#eraSelect');
+    select.innerHTML = '';
+    eras.forEach(era => {
+      const opt = document.createElement('option');
+      opt.value = era.name;
+      opt.textContent = `${era.name}（${era.period}）`;
+      select.appendChild(opt);
+    });
+    if (eras.length) select.value = eras[0].name;
+  } catch (e) {
+    console.warn('无法加载时代列表，使用备用列表（仅展示）');
+    const fallback = ['夏', '商', '西周', '春秋', '战国', '秦', '西汉', '新', '东汉', '三国', '西晋', '东晋十六国', '南北朝', '隋', '唐', '五代十国', '北宋', '南宋', '辽', '西夏', '金', '元', '明', '清', '清末'];
+    const select = $('#eraSelect');
+    select.innerHTML = '';
+    fallback.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+  }
+}
+
+// ---- 应用状态更新 ----
+function applyStateUpdates(updates) {
+  if (!updates) return;
+  if (updates.currentCharacter) Object.assign(state.character, updates.currentCharacter);
+  if (updates.worldDynamics) {
+    if (!state.worldDynamics) state.worldDynamics = {};
+    Object.assign(state.worldDynamics, updates.worldDynamics);
+  }
+  if (updates.inventory) {
+    if (updates.inventory.items) state.inventory = updates.inventory.items;
+    if (updates.inventory.currency) state.currency = updates.inventory.currency.copper || state.currency || 0;
+  }
+  if (updates.relationships) state.relationships = updates.relationships;
+  if (updates.knownMap) {
+    if (!state.knownMap) state.knownMap = { currentLocation: '', knownPlaces: [] };
+    if (updates.knownMap.currentLocation) {
+      state.knownMap.currentLocation = updates.knownMap.currentLocation;
+      state.character.location = updates.knownMap.currentLocation;
+    }
+    if (updates.knownMap.knownPlaces) {
+      updates.knownMap.knownPlaces.forEach(p => {
+        if (!state.knownMap.knownPlaces.includes(p)) state.knownMap.knownPlaces.push(p);
+      });
+    }
+  }
+  if (updates.time) Object.assign(state.time, updates.time);
+  if (updates.suggested_goals) state.current_goals = updates.suggested_goals;
+  if (updates.completed_goals) {
+    if (!state.completed_goals) state.completed_goals = [];
+    updates.completed_goals.forEach(g => {
+      if (!state.completed_goals.includes(g)) state.completed_goals.push(g);
+    });
+  }
+}
+
+// ---- 插入系统消息 ----
+function appendSystemMessage(text) {
+  const entry = {
+    id: generateEntryId(),
+    type: 'system',
+    time: formatTime(),
+    location: state.character.location || '未知',
+    duration: '——',
+    text: text,
+    pace: 'system'
+  };
+  if (!state.logs) state.logs = [];
+  state.logs.push(entry);
+  saveState();
+  renderStory();
+}
+
+// ---- 执行玩家行动（核心） ----
+async function executePlayerAction(input, isRetry = false) {
+  if (!state.sessionId) {
+    toast('错误：会话未初始化，请重新开始游戏');
+    return;
+  }
+  if (isProcessing) {
+    toast('正在处理中，请稍候...');
+    return;
+  }
+  isProcessing = true;
+  $('#actionInput').disabled = true;
+  $('#sendBtn').disabled = true;
+  $('#sendBtn').textContent = '…';
+
+  try {
+    const history = (state.logs || [])
+        .filter(l => l.type !== 'error' && l.type !== 'system')
+        .slice(-15)
+        .map(l => ({ role: 'system', content: l.text }));
+
+    const request = {
+      session_id: state.sessionId,
+      player_input: input,
+      current_state: {
+        currentCharacter: state.character,
+        time: state.time,
+        currency: state.currency,
+        inventory: state.inventory,
+        assets: state.assets,
+        relationships: state.relationships,
+        goals: state.goals,
+        current_goals: state.current_goals,
+        completed_goals: state.completed_goals,
+        known: state.known,
+        knownMap: state.knownMap,
+        worldDynamics: state.worldDynamics,
+        logs: state.logs
+      },
+      history: history,
+      pace: pace
+    };
+
+    const data = await apiJson('/api/play', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    });
+
+    if (data.state_updates) applyStateUpdates(data.state_updates);
+    if (data.suggested_actions && data.suggested_actions.length > 0) {
+      state.suggestions = data.suggested_actions;
+    }
+
+    if (isRetry) {
+      state.logs = state.logs.filter(l => l.text !== '🔄 正在重试上一次行动...');
+    }
+
+    const logEntry = {
+      id: generateEntryId(),
+      type: 'narrative',
+      time: formatTime(),
+      location: state.character.location || '未知',
+      duration: data.time_elapsed || '片刻',
+      text: data.narrative || '世界安静地继续运行。',
+      pace: pace === 'immersive' ? '' : pace
+    };
+    if (!state.logs) state.logs = [];
+    state.logs.push(logEntry);
+    if (state.logs.length > 100) state.logs = state.logs.slice(-100);
+
+    saveState();
+    renderGame();
+    toast(isRetry ? '✅ 重试成功，行动已结算' : '行动已结算，人生已自动保存');
+
+    lastFailedInput = null;
+    lastFailedEntryId = null;
+  } catch (error) {
+    lastFailedInput = input;
+    const errorEntry = {
+      id: generateEntryId(),
+      type: 'error',
+      time: formatTime(),
+      location: state.character.location || '未知',
+      duration: '——',
+      text: `⚠️ AI处理失败：${error.message || '未知错误'}`,
+      pace: 'error',
+      retryInput: input,
+      errorMessage: error.message || '未知错误'
+    };
+    state.logs.push(errorEntry);
+    lastFailedEntryId = errorEntry.id;
+    saveState();
+    renderStory();
+    toast('❌ AI处理失败，点击"重试"按钮重新发送');
+  } finally {
+    isProcessing = false;
+    $('#actionInput').disabled = false;
+    $('#sendBtn').disabled = false;
+    $('#sendBtn').textContent = '↑';
+    $('#actionInput').focus();
+  }
+}
+
+// ---- 发送玩家行动 ----
+async function sendPlayerAction(input) {
+  const actionLog = {
+    id: generateEntryId(),
+    type: 'action',
+    time: formatTime(),
+    location: state.character.location || '未知',
+    duration: '——',
+    text: `▶ ${input}`,
+    pace: 'action'
+  };
+  if (!state.logs) state.logs = [];
+  state.logs.push(actionLog);
+  renderStory();
+  saveState();
+  await executePlayerAction(input, false);
+}
+
+// ---- 重试行动 ----
+async function retryAction() {
+  if (!lastFailedInput) {
+    toast('没有可重试的行动');
+    return;
+  }
+  if (lastFailedEntryId) {
+    state.logs = state.logs.filter(l => l.id !== lastFailedEntryId);
+  }
+  const input = lastFailedInput;
+  lastFailedInput = null;
+  lastFailedEntryId = null;
+  appendSystemMessage('🔄 正在重试上一次行动...');
+  await executePlayerAction(input, true);
+}
+
+// ---- 事件绑定 ----
+// 模式选择
+$$('.mode-option').forEach(b => {
+  b.onclick = () => {
+    $$('.mode-option').forEach(x => x.classList.remove('selected'));
+    b.classList.add('selected');
+  };
+});
+
+// 节奏切换（即时反馈）
+$$('.pace').forEach(b => {
+  b.onclick = () => {
+    $$('.pace').forEach(x => x.classList.remove('selected'));
+    b.classList.add('selected');
+    const oldPace = pace;
+    const newPace = b.dataset.pace;
+    pace = newPace;
+    const names = { immersive: '沉浸', quick: '快速', jump: '跳跃' };
+    const descs = {
+      immersive: '详细描写环境、人物与对话，适合重要时刻',
+      quick: '只记关键进展，日常事务快速推进',
+      jump: '摘要式跳跃，直接抵达下一个节点'
+    };
+    if (oldPace !== newPace) {
+      appendSystemMessage(`📌 已切换到「${names[newPace] || newPace}」模式 · ${descs[newPace] || ''}`);
+    }
+    const tips = {
+      jump: '🚀 跳跃模式：叙事将大幅精简，快速推进时间',
+      quick: '⚡ 快速模式：叙事精简，只保留关键信息',
+      immersive: '📖 沉浸模式：叙事详细展开'
+    };
+    toast(tips[newPace] || '已切换节奏');
+  };
+});
+
+// 右侧标签
+$$('.tab').forEach(b => {
+  b.onclick = () => {
+    $$('.tab').forEach(x => x.classList.remove('selected'));
+    b.classList.add('selected');
+    renderRight(b.dataset.tab);
+  };
+});
+
+// 背包
+$('#inventoryBtn').onclick = showInventory;
+$$('.close-dialog').forEach(b => b.onclick = () => $('#inventoryDialog').close());
+
+// 行动提交
+$('#actionForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const input = $('#actionInput').value.trim();
+  if (!input) return;
+  $('#actionInput').value = '';
+  await sendPlayerAction(input);
 };
+
+// 保存
+$('#saveBtn').onclick = () => {
+  saveState();
+  toast('已保存当前人生状态');
+};
+
+// 导出
+$('#exportBtn').onclick = () => {
+  const payload = {
+    title: '历史人生模拟器 · 人生档案',
+    exportedAt: new Date().toLocaleString('zh-CN'),
+    mode: modeLabels[state.mode] || state.mode,
+    character: state.character,
+    time: state.time,
+    currency: state.currency,
+    inventory: state.inventory,
+    assets: state.assets,
+    relationships: state.relationships,
+    logs: state.logs,
+    current_goals: state.current_goals,
+    completed_goals: state.completed_goals,
+    worldDynamics: state.worldDynamics,
+    knownMap: state.knownMap
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+  a.download = `${state.character.name}_人生档案.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('只读人生档案已导出');
+};
+
+// 新建游戏
+$('#newGameBtn').onclick = () => {
+  if (confirm('结束当前人生并回到创建页面？')) {
+    localStorage.removeItem(STORAGE);
+    state = structuredClone(baseState);
+    renderSetup();
+  }
+};
+
+// 年份解析
+$('#resolveYearBtn').onclick = async () => {
+  const btn = $('#resolveYearBtn');
+  btn.disabled = true;
+  clearSetupError();
+  try {
+    await resolveYear();
+  } catch (error) {
+    setResolveStatus(error.message, 'error');
+    setupError(error.message);
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+// 开始游戏
+$('#startBtn').onclick = async () => {
+  const btn = $('#startBtn');
+  const label = btn.querySelector('span');
+  const original = label.textContent;
+  btn.disabled = true;
+  label.textContent = 'AI 正在建立世界…';
+  clearSetupError();
+
+  try {
+    const historyEvent = $('#historyEvent').value.trim();
+    const selectedYear = $('#birthYear')?.value || '';
+    let yearResolved = '';
+    if (historyEvent) {
+      const td = await resolveYear(false);
+      yearResolved = `${td.year_label}（${td.year}）`;
+    } else if (selectedYear) {
+      yearResolved = selectedYear;
+    } else {
+      yearResolved = '由 AI 确定';
+    }
+
+    const playerRelationships = parseInitialRelationships($('#charRelations').value);
+    const character = {
+      name: $('#charName').value.trim() || '无名',
+      age: Number($('#charAge').value) || 14,
+      gender: $('#charGender').value,
+      origin: $('#charOrigin').value.trim() || '',
+      role: $('#charRole').value.trim() || '',
+      personality: $('#charPersonality').value.trim() || '',
+      initial_relationships: playerRelationships,
+      history_event: historyEvent
+    };
+
+    const mode = $('.mode-option.selected').dataset.mode || 'restore';
+    const era = $('#eraSelect').value;
+    const charType = $('#characterType').value;
+
+    const data = await apiJson('/api/game/init', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode,
+        era,
+        year: yearResolved,
+        character_type: charType,
+        character
+      })
+    });
+
+    if (!data.initial_state) throw new Error('AI未返回有效初始状态');
+    if (!data.session_id) throw new Error('AI未返回会话ID');
+
+    state = structuredClone(baseState);
+    state.sessionId = data.session_id;
+    state.mode = mode;
+    state.aiInitialized = true;
+
+    const aiState = data.initial_state;
+    const aiCharacter = aiState.currentCharacter || aiState.current_character || aiState.character || {};
+    state.character = {
+      ...state.character,
+      ...aiCharacter,
+      ...character
+    };
+    if (!character.origin) state.character.origin = aiCharacter.origin || state.character.origin;
+    if (!character.role) state.character.role = aiCharacter.role || state.character.role;
+    if (!character.personality) state.character.personality = aiCharacter.personality || state.character.personality;
+    delete state.character.initial_relationships;
+    delete state.character.history_event;
+    if (aiState.time) Object.assign(state.time, aiState.time);
+    if (aiState.inventory) {
+      state.inventory = aiState.inventory.items || [];
+      if (aiState.inventory.currency) state.currency = aiState.inventory.currency.copper || 0;
+    }
+    state.relationships = mergeRelationships(aiState.relationships || aiState.relations, playerRelationships);
+    if (aiState.knownMap) {
+      state.knownMap = aiState.knownMap;
+      if (state.knownMap.currentLocation) state.character.location = state.knownMap.currentLocation;
+    }
+    if (aiState.worldDynamics) state.worldDynamics = aiState.worldDynamics;
+    if (aiState.current_goals) state.current_goals = aiState.current_goals;
+    if (data.suggested_actions) state.suggestions = data.suggested_actions;
+
+    state.logs = [{
+      id: generateEntryId(),
+      type: 'narrative',
+      time: formatTime(),
+      location: state.character.location || '未知',
+      duration: '初始',
+      text: data.character_intro || `你在${state.time.year || '这个时代'}开始了这一生。`
+    }];
+
+    saveState();
+    renderGame();
+    toast('AI 世界初始化完成，人生开始');
+  } catch (error) {
+    const msg = error.message.startsWith('AI配置失败') ? error.message : `AI配置失败：${error.message}`;
+    setupError(msg);
+    setResolveStatus('无法开始人生', 'error');
+    renderSetup();
+  } finally {
+    btn.disabled = false;
+    label.textContent = original;
+  }
+};
+
+// ---- 页面初始化 ----
+window.addEventListener('DOMContentLoaded', async () => {
+  await loadEraList();
+  await checkAiHealth();
+  if (state.aiInitialized && state.sessionId && state.logs && state.logs.length > 0) {
+    renderGame();
+    toast('已加载存档，继续人生');
+  } else {
+    renderSetup();
+  }
+});
+
+// ---- 调试工具 ----
+window.__debug = { state, sendPlayerAction, saveState, renderGame, retryAction };
