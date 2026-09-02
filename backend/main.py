@@ -193,7 +193,7 @@ async def init_game(request: CreateGameRequest):
     flat_character = {
         key: initial_state[key] for key in (
             "name", "age", "gender", "origin", "location", "role", "personality",
-            "health", "education", "knowledge", "martial", "marital", "family", "energy", "reputation", "mood", "status"
+            "personality_traits", "health", "education", "knowledge", "martial", "marital", "family", "energy", "reputation", "mood", "status"
         ) if key in initial_state
     }
     ai_character = {**flat_character, **(nested_character if isinstance(nested_character, dict) else {})}
@@ -278,6 +278,7 @@ async def init_game(request: CreateGameRequest):
         "long_term_memory": normalize_memory({
             "character_facts": [
                 f"人物由玩家创建：{request.character.get('name', '无名')}，职业为{request.character.get('profession', request.character.get('occupation', '未指定'))}。",
+                *([f"性格：{request.character['personality']}" ] if request.character.get('personality') else []),
                 *([f"擅长：{request.character['skills']}" ] if request.character.get('skills') else []),
                 *([f"家庭背景：{request.character['family_background']}" ] if request.character.get('family_background') else []),
                 *([f"最终人生目标：{request.character['life_goal']}" ] if request.character.get('life_goal') else []),

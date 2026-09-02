@@ -39,8 +39,9 @@ def build_init_prompt(mode: str, era: str, year: str, character_type: str, chara
 模式：{mode}\n时代：{era}\n年份：{year or '由系统按时代确定'}\n人物模式：{character_type}
 玩家提供的附近世界资料（必须作为本次人生的初始记忆，后续行动继续遵守）：\n{json.dumps(world_context, ensure_ascii=False, indent=2)}
 玩家提供的人物信息：\n{json.dumps(character, ensure_ascii=False, indent=2)}
-玩家提供的 name、personality、origin、family_background、profession、skills、life_goal 及 initial_relationships 为权威设定，必须原样保留：
+玩家提供的 name、personality、personality_traits、origin、family_background、profession、skills、life_goal 及 initial_relationships 为权威设定，必须原样保留：
 - 不得改名、替换性格、家庭背景、职业、擅长或人生目标，也不得删除或改写初始关系中的姓名、类别、具体关系与关系程度。
+- personality_traits 是人物性格的五维结构化设定：处世态度、社交倾向、价值取向、决策风格、情绪底色。每一维可能为空或有多个选择；必须将已选性格作为人物行动、对话和目标判断的持续约束，不可自行补写未选维度。
 - 可以补充健康、教育、地点、资产、关系背景等未指定信息。
 - initial_state 中请使用 currentCharacter 字段承载人物资料，使用 relationships 数组承载所有初始关系。
 - 必须把附近世界资料融入 world_background、worldDynamics 和 knownMap；不得把玩家尚未合理得知的远方信息直接当作已知事实。

@@ -411,6 +411,33 @@
       font-size: 12px; color: var(--text-secondary);
     }
     .relationship-entry button { border: 0; background: transparent; color: var(--text-muted); cursor: pointer; padding: 0 4px; }
+    .personality-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .personality-dropdown {
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+    }
+    .personality-dropdown summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      cursor: pointer;
+      padding: 8px 10px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      list-style: none;
+    }
+    .personality-dropdown summary::-webkit-details-marker { display: none; }
+    .personality-dropdown summary::after { content: '⌄'; color: var(--text-muted); }
+    .personality-dropdown[open] summary { border-bottom: 1px solid var(--border-light); }
+    .personality-selected { color: var(--accent-dark); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .personality-options { padding: 8px 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .personality-options label { margin: 0; display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 400; color: var(--text-secondary); cursor: pointer; }
+    .personality-options input { width: auto; margin: 0; accent-color: var(--accent-dark); }
 
     .primary-btn {
       width: 100%;
@@ -1732,6 +1759,7 @@
       .relationship-editor button {
         width: 100%;
       }
+      .personality-grid { grid-template-columns: 1fr; }
       .setup-footer {
         grid-template-columns: 1fr;
         gap: 8px;
@@ -1889,8 +1917,39 @@
 
         <div class="form-row single">
           <div>
-            <label for="charPersonality">人物性格</label>
-            <input id="charPersonality" placeholder="例如：谨慎、好学、重诺">
+            <label>人物性格（每个维度可多选或不选）</label>
+            <div class="personality-grid" id="personalityEditor">
+              <details class="personality-dropdown" data-trait-dimension="处世态度">
+                <summary><span>处世态度</span><span class="personality-selected">未选择</span></summary>
+                <div class="personality-options">
+                  <label><input type="checkbox" value="谨慎">谨慎</label><label><input type="checkbox" value="果敢">果敢</label><label><input type="checkbox" value="隐忍">隐忍</label><label><input type="checkbox" value="率性">率性</label><label><input type="checkbox" value="务实">务实</label><label><input type="checkbox" value="浪漫">浪漫</label>
+                </div>
+              </details>
+              <details class="personality-dropdown" data-trait-dimension="社交倾向">
+                <summary><span>社交倾向</span><span class="personality-selected">未选择</span></summary>
+                <div class="personality-options">
+                  <label><input type="checkbox" value="亲和">亲和</label><label><input type="checkbox" value="孤僻">孤僻</label><label><input type="checkbox" value="圆滑">圆滑</label><label><input type="checkbox" value="耿直">耿直</label><label><input type="checkbox" value="热忱">热忱</label><label><input type="checkbox" value="疏离">疏离</label>
+                </div>
+              </details>
+              <details class="personality-dropdown" data-trait-dimension="价值取向">
+                <summary><span>价值取向</span><span class="personality-selected">未选择</span></summary>
+                <div class="personality-options">
+                  <label><input type="checkbox" value="功名">功名</label><label><input type="checkbox" value="财富">财富</label><label><input type="checkbox" value="情义">情义</label><label><input type="checkbox" value="学问">学问</label><label><input type="checkbox" value="安稳">安稳</label><label><input type="checkbox" value="自由">自由</label>
+                </div>
+              </details>
+              <details class="personality-dropdown" data-trait-dimension="决策风格">
+                <summary><span>决策风格</span><span class="personality-selected">未选择</span></summary>
+                <div class="personality-options">
+                  <label><input type="checkbox" value="深思熟虑">深思熟虑</label><label><input type="checkbox" value="直觉果断">直觉果断</label><label><input type="checkbox" value="犹豫不决">犹豫不决</label><label><input type="checkbox" value="顺势而为">顺势而为</label>
+                </div>
+              </details>
+              <details class="personality-dropdown" data-trait-dimension="情绪底色">
+                <summary><span>情绪底色</span><span class="personality-selected">未选择</span></summary>
+                <div class="personality-options">
+                  <label><input type="checkbox" value="沉稳">沉稳</label><label><input type="checkbox" value="热烈">热烈</label><label><input type="checkbox" value="忧郁">忧郁</label><label><input type="checkbox" value="平和">平和</label><label><input type="checkbox" value="急躁">急躁</label><label><input type="checkbox" value="淡然">淡然</label>
+                </div>
+              </details>
+            </div>
           </div>
         </div>
 
@@ -2108,6 +2167,6 @@
   </dialog>
 </div>
 
-<script src="app.js?v=20260902-2"></script>
+<script src="app.js?v=20260902-3"></script>
 </body>
 </html>

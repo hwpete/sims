@@ -140,6 +140,7 @@ const baseState = {
     location: '未知',
     role: '百姓',
     personality: '',
+    personality_traits: {},
     health: '健康',
     education: '粗通文字',
     knowledge: '有限',
@@ -241,6 +242,38 @@ const RELATION_TYPES = {
   '社会往来': ['同乡', '邻居', '商人伙伴', '恩人', '仇人']
 };
 let initialRelationships = [];
+
+function getPersonalityTraits() {
+  const traits = {};
+  $$('.personality-dropdown[data-trait-dimension]').forEach(group => {
+    const dimension = group.dataset.traitDimension;
+    const selected = $$('input[type="checkbox"]:checked', group).map(input => input.value);
+    if (selected.length) traits[dimension] = selected;
+  });
+  return traits;
+}
+
+function formatPersonalityTraits(traits) {
+  return Object.entries(traits)
+    .filter(([, values]) => Array.isArray(values) && values.length)
+    .map(([dimension, values]) => `${dimension}：${values.join('、')}`)
+    .join('；');
+}
+
+function updatePersonalitySummaries() {
+  $$('.personality-dropdown[data-trait-dimension]').forEach(group => {
+    const values = $$('input[type="checkbox"]:checked', group).map(input => input.value);
+    const summary = $('.personality-selected', group);
+    if (summary) summary.textContent = values.length ? values.join('、') : '未选择';
+  });
+}
+
+function bindPersonalityEditor() {
+  $$('.personality-dropdown input[type="checkbox"]').forEach(input => {
+    input.addEventListener('change', updatePersonalitySummaries);
+  });
+  updatePersonalitySummaries();
+}
 
 function updateRelationCategoryHint() {
   const category = $('#relationCategoryInput')?.value || '至亲';
@@ -1259,6 +1292,7 @@ $('#relationNameInput')?.addEventListener('keydown', event => {
 });
 $('#relationCategoryInput')?.addEventListener('change', updateRelationCategoryHint);
 updateRelationCategoryHint();
+bindPersonalityEditor();
 
 // 年份解析
 $('#resolveYearBtn').onclick = async () => {
@@ -1300,12 +1334,14 @@ $('#startBtn').onclick = async () => {
     }
 
     const playerRelationships = getInitialRelationships();
+    const personalityTraits = getPersonalityTraits();
     const character = {
       name: $('#charName').value.trim() || '无名',
       age: Number($('#charAge').value) || 14,
       gender: $('#charGender').value,
       origin: $('#charOrigin').value.trim() || '',
-      personality: $('#charPersonality').value.trim() || '',
+      personality: formatPersonalityTraits(personalityTraits),
+      personality_traits: personalityTraits,
       family_background: $('#charFamily').value.trim() || '',
       profession: $('#charProfession').value.trim() || '',
       skills: $('#charSkills').value.trim() || '',
