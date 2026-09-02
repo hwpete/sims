@@ -729,6 +729,7 @@ function renderRight(tab) {
         <div class="info-line"><span>年龄</span><span>${c.age}岁</span></div>
         <div class="info-line"><span>籍贯</span><span>${c.origin || '未知'}</span></div>
         <div class="info-line"><span>当前身份</span><span>${c.role || '百姓'}</span></div>
+        <div class="info-line"><span>擅长</span><span>${c.skills || '未设定'}</span></div>
         <div class="info-line"><span>性格</span><span>${c.personality || '未设定'}</span></div>
         <div class="info-line"><span>教育</span><span>${c.education || '未记载'}</span></div>
         <div class="info-line"><span>婚姻</span><span>${c.marital || '未婚'}</span></div>
@@ -1306,7 +1307,8 @@ $('#startBtn').onclick = async () => {
       origin: $('#charOrigin').value.trim() || '',
       personality: $('#charPersonality').value.trim() || '',
       family_background: $('#charFamily').value.trim() || '',
-      occupation: $('#charOccupation').value.trim() || '',
+      profession: $('#charProfession').value.trim() || '',
+      skills: $('#charSkills').value.trim() || '',
       life_goal: $('#charGoal').value.trim() || '',
       initial_relationships: playerRelationships,
       history_event: historyEvent
@@ -1345,7 +1347,8 @@ $('#startBtn').onclick = async () => {
       ...aiCharacter,
       ...character
     };
-    if (character.occupation) state.character.role = character.occupation;
+    if (character.profession) state.character.role = character.profession;
+    if (character.skills) state.character.skills = character.skills;
     if (character.family_background) state.character.family = character.family_background;
     if (!character.origin) state.character.origin = aiCharacter.origin || state.character.origin;
     if (!character.personality) state.character.personality = aiCharacter.personality || state.character.personality;

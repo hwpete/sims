@@ -206,8 +206,8 @@ async def init_game(request: CreateGameRequest):
     # Keep the player's creation fields in the canonical character shape used
     # by the rest of the game.  The API accepts descriptive field names from
     # the setup form, while gameplay/rendering consistently reads role/family.
-    if request.character.get("occupation"):
-        player_character["role"] = request.character["occupation"]
+    if request.character.get("profession") or request.character.get("occupation"):
+        player_character["role"] = request.character.get("profession") or request.character.get("occupation")
     if request.character.get("family_background"):
         player_character["family"] = request.character["family_background"]
     initial_state["currentCharacter"] = normalize_character_attributes({**ai_character, **player_character})
@@ -277,7 +277,8 @@ async def init_game(request: CreateGameRequest):
         "history": [],
         "long_term_memory": normalize_memory({
             "character_facts": [
-                f"人物由玩家创建：{request.character.get('name', '无名')}，职业/擅长为{request.character.get('occupation', '未指定')}。",
+                f"人物由玩家创建：{request.character.get('name', '无名')}，职业为{request.character.get('profession', request.character.get('occupation', '未指定'))}。",
+                *([f"擅长：{request.character['skills']}" ] if request.character.get('skills') else []),
                 *([f"家庭背景：{request.character['family_background']}" ] if request.character.get('family_background') else []),
                 *([f"最终人生目标：{request.character['life_goal']}" ] if request.character.get('life_goal') else []),
             ],
