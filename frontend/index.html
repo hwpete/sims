@@ -397,6 +397,20 @@
     .resolve-status.error {
       color: var(--status-danger);
     }
+    .relationship-editor {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+    .relationship-editor button { width: auto; margin: 0; padding: 9px 14px; font-size: 13px; }
+    .relationship-list { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+    .relationship-entry {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 6px 9px; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 5px;
+      font-size: 12px; color: var(--text-secondary);
+    }
+    .relationship-entry button { border: 0; background: transparent; color: var(--text-muted); cursor: pointer; padding: 0 4px; }
 
     .primary-btn {
       width: 100%;
@@ -761,6 +775,16 @@
       flex-direction: column;
       gap: 4px;
     }
+    .goal-group-title {
+      margin: 7px 0 3px;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-family: var(--font-heading);
+      letter-spacing: 1px;
+    }
+    .goal-group-title:first-child {
+      margin-top: 0;
+    }
     .goal {
       padding: 4px 10px;
       font-size: 13px;
@@ -787,6 +811,10 @@
       gap: 2px;
       font-size: 13px;
       color: var(--text-secondary);
+      max-height: 168px;
+      overflow-y: auto;
+      padding-right: 4px;
+      scrollbar-width: thin;
     }
     .item-row {
       display: flex;
@@ -974,6 +1002,42 @@
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
+    }
+    .rich-text {
+      line-height: 1.85;
+      word-break: break-word;
+    }
+    .rich-text .rich-spacer {
+      height: .45em;
+    }
+    .rich-text h4 {
+      margin: 10px 0 3px;
+      color: var(--text-primary);
+      font-family: var(--font-heading);
+      font-size: 14px;
+    }
+    .rich-text h4:first-child {
+      margin-top: 0;
+    }
+    .rich-text strong {
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+    .rich-text hr {
+      border: 0;
+      border-top: 1px solid var(--border-light);
+      margin: 10px 0;
+    }
+    .rich-text .rich-list-item {
+      padding-left: 1em;
+      position: relative;
+    }
+    .rich-text .rich-list-item::before {
+      content: '·';
+      position: absolute;
+      left: .2em;
+      color: var(--accent-dark);
+      font-weight: 700;
     }
 
     .story-card.quick-mode {
@@ -1251,6 +1315,24 @@
       border-radius: 6px;
       border: 1px solid var(--border-light);
     }
+    .status-summary {
+      cursor: pointer;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .status-summary:hover,
+    .status-summary:focus-visible {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(201, 168, 124, .18);
+      outline: none;
+    }
+    .status-summary-hint {
+      color: var(--text-light);
+      font-size: 10px;
+      font-family: var(--font-heading);
+      margin-left: auto;
+      grid-column: 1 / -1;
+      text-align: right;
+    }
     .stat {
       display: flex;
       justify-content: space-between;
@@ -1380,6 +1462,7 @@
       border: none;
       border-radius: 12px;
       padding: 0;
+      margin: auto;
       max-width: 440px;
       width: 90%;
       box-shadow: var(--shadow-lg);
@@ -1490,6 +1573,43 @@
     #inventoryDetail .asset-line b {
       color: var(--text-primary);
       font-weight: 500;
+    }
+    #statusDetailDialog {
+      width: min(620px, 92vw);
+      max-width: 620px;
+      max-height: 86vh;
+      margin: auto;
+    }
+    .status-detail-body {
+      padding: 16px 20px 20px;
+      overflow-y: auto;
+      max-height: calc(86vh - 72px);
+    }
+    .status-detail-row {
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .status-detail-row:last-child { border-bottom: none; }
+    .status-detail-row header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+    .status-detail-row header b {
+      font-family: var(--font-heading);
+      color: var(--text-primary);
+    }
+    .status-detail-row header span {
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .status-detail-row p {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.65;
     }
 
     /* ============================================================
@@ -1763,13 +1883,6 @@
 
         <div class="form-row single">
           <div>
-            <label for="charRole">初始身份 / 职业</label>
-            <input id="charRole" value="郡府书吏" placeholder="例如：郡府书吏、铁匠学徒、行商">
-          </div>
-        </div>
-
-        <div class="form-row single">
-          <div>
             <label for="charPersonality">人物性格</label>
             <input id="charPersonality" placeholder="例如：谨慎、好学、重诺">
           </div>
@@ -1777,9 +1890,38 @@
 
         <div class="form-row single">
           <div>
-            <label for="charRelations">初始人物关系</label>
-            <textarea id="charRelations" rows="2" placeholder="例如：母亲李氏（亲属）；张三（同乡）"></textarea>
-            <small>可用分号、逗号或换行分隔；括号内填写关系类型</small>
+            <label for="charFamily">家庭背景</label>
+            <textarea id="charFamily" rows="2" placeholder="例如：父亲黄昭，县衙小吏；母亲李氏，勤俭持家"></textarea>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div>
+            <label for="charOccupation">职业 / 擅长</label>
+            <input id="charOccupation" placeholder="例如：农人；擅长弓术、识字">
+          </div>
+          <div>
+            <label for="charGoal">人生目标（最终目标）</label>
+            <input id="charGoal" placeholder="例如：保全家族并在乱世立足">
+          </div>
+        </div>
+
+        <div class="form-row single">
+          <div>
+            <label>初始人物关系</label>
+            <div class="relationship-editor">
+              <input id="relationNameInput" placeholder="人物姓名">
+              <select id="relationCategoryInput">
+                <option value="至亲">至亲 · 亲密</option>
+                <option value="宗族">宗族 · 亲近</option>
+                <option value="师友">师友 · 寻常</option>
+                <option value="官场/职场">官场/职场 · 疏远</option>
+                <option value="社会往来">社会往来 · 交恶</option>
+              </select>
+              <button type="button" id="addRelationBtn" class="secondary-btn">添加</button>
+            </div>
+            <div id="relationshipList" class="relationship-list"></div>
+            <small id="relationCategoryHint">至亲：父母、子女、配偶、兄弟姐妹。默认关系程度：亲密。</small>
           </div>
         </div>
 
@@ -1847,15 +1989,13 @@
         </section>
 
         <section class="mini-section">
-          <div class="section-label">行囊快览 <button class="text-btn" id="inventoryBtn">查看全部</button></div>
+          <div class="section-label">行囊</div>
           <div id="inventoryPreview" class="inventory-preview"></div>
-          <div class="currency"><span>铜钱</span><b id="currencyValue">0</b><small>枚</small></div>
         </section>
 
         <section class="mini-section location-mini">
           <div class="section-label">所在地区</div>
           <b id="locationSummary">江陵城 · 南市附近</b>
-          <p id="locationDescription">城中有官府、市集、作坊与往来道路。</p>
         </section>
 
         <div class="autosave">
@@ -1914,6 +2054,14 @@
     <div id="inventoryDetail"></div>
   </dialog>
 
+  <dialog id="statusDetailDialog">
+    <div class="dialog-head">
+      <h2 id="statusDetailTitle">人物状态详情</h2>
+      <button type="button" class="close-dialog status-detail-close">×</button>
+    </div>
+    <div id="statusDetailBody" class="status-detail-body"></div>
+  </dialog>
+
   <!-- 世界与人物初始化确认 -->
   <dialog id="initializationDialog">
     <div class="dialog-head">
@@ -1929,7 +2077,7 @@
         <div id="characterInitializationPreview" class="initialization-content"></div>
       </section>
       <section class="initialization-section">
-        <h3>世界动态与可行动事项</h3>
+        <h3>世界动态</h3>
         <div id="dynamicsInitializationPreview" class="initialization-content"></div>
       </section>
     </div>
@@ -1940,6 +2088,6 @@
   </dialog>
 </div>
 
-<script src="app.js?v=20260901-3"></script>
+<script src="app.js?v=20260902-1"></script>
 </body>
 </html>

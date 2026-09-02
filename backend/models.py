@@ -50,3 +50,6 @@ class PlayResponse(BaseModel):
     location_changed: Optional[str] = None
     new_info: List[str] = Field(default_factory=list)
     memory_update: Dict[str, Any] = Field(default_factory=dict)
+    new_person_appeared: bool = False
+    new_characters: List[Dict[str, Any]] = Field(default_factory=list)
+    action_assessment: Dict[str, Any] = Field(default_factory=dict)

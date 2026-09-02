@@ -9,13 +9,15 @@ from fastapi.staticfiles import StaticFiles
 
 try:
     from .ai_engine import AIServiceError, call_openai, parse_init, parse_play
-    from .config import HOST, MAX_HISTORY_LENGTH, MAX_MEMORY_ITEMS_PER_CATEGORY, PORT, OPENAI_API_KEY, RECENT_CONVERSATION_MESSAGES
+    from .config import HOST, MAX_HISTORY_LENGTH, MAX_MEMORY_ITEMS_PER_CATEGORY, PORT, OPENAI_API_KEY, \
+        RECENT_CONVERSATION_MESSAGES
     from .models import CreateGameRequest, GameInitResponse, PlayRequest, PlayResponse, ResolveTimeRequest, \
         ResolveTimeResponse
     from .prompts import build_init_prompt, build_play_prompt, build_time_resolve_prompt, load_reference_document
 except ImportError:
     from ai_engine import AIServiceError, call_openai, parse_init, parse_play
-    from config import HOST, MAX_HISTORY_LENGTH, MAX_MEMORY_ITEMS_PER_CATEGORY, PORT, OPENAI_API_KEY, RECENT_CONVERSATION_MESSAGES
+    from config import HOST, MAX_HISTORY_LENGTH, MAX_MEMORY_ITEMS_PER_CATEGORY, PORT, OPENAI_API_KEY, \
+        RECENT_CONVERSATION_MESSAGES
     from models import CreateGameRequest, GameInitResponse, PlayRequest, PlayResponse, ResolveTimeRequest, \
         ResolveTimeResponse
     from prompts import build_init_prompt, build_play_prompt, build_time_resolve_prompt, load_reference_document
@@ -53,6 +55,48 @@ def load_session(session_id: str) -> Optional[Dict[str, Any]]:
 
 MEMORY_CATEGORIES = ("character_facts", "world_changes", "relationship_changes", "important_events", "open_threads")
 
+ATTRIBUTE_DEFAULTS = {
+    "health": ("健康", "正常体魄，能胜任日常劳动"),
+    "energy": ("充裕", "正常状态，能应对日常工作"),
+    "mood": ("平宁", "情绪平稳，无大波澜"),
+    "reputation": ("无名", "乡野小民，无人知晓"),
+    "knowledge": ("粗识", "认识一些字，能写简单文书"),
+    "martial": ("文弱", "不通武艺，提刀手软"),
+}
+ATTRIBUTE_ALIASES = {
+    "health": {"强健": "魁健", "健康": "健康", "良好": "健康", "正常": "健康", "不佳": "尚可", "病弱": "虚弱", "重伤": "尚可", "危重": "濒危", "濒死": "濒危"},
+    "energy": {"充足": "充裕", "正常": "充裕", "疲劳": "疲惫", "力竭": "衰竭"},
+    "mood": {"平静": "平宁", "稳定": "平宁", "焦虑": "忧思", "恐惧": "惶惑"},
+    "reputation": {"默默无闻": "无名", "小有名气": "乡闻", "有名": "县知"},
+    "knowledge": {"有限": "粗识", "未入门": "未学", "识字": "粗识"},
+    "martial": {"未入门": "文弱", "略懂": "粗习", "熟练": "精熟"},
+}
+
+
+def normalize_character_attributes(character: Any, fallback: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    result = dict(character) if isinstance(character, dict) else {}
+    fallback = fallback if isinstance(fallback, dict) else {}
+    for key, (default_level, default_detail) in ATTRIBUTE_DEFAULTS.items():
+        value = result.get(key, fallback.get(key))
+        if isinstance(value, dict):
+            level = str(value.get("level") or value.get("summary") or default_level)
+            detail = str(value.get("detail") or default_detail)
+        else:
+            level = str(value or default_level)
+            detail = default_detail
+        level = ATTRIBUTE_ALIASES.get(key, {}).get(level, level)
+        if level not in {
+            "health": {"魁健", "健康", "尚可", "虚弱", "衰微", "濒危"},
+            "energy": {"充沛", "充裕", "渐疲", "疲惫", "衰竭"},
+            "mood": {"静明", "平宁", "忧思", "愤懑", "惶惑", "崩溃"},
+            "reputation": {"无名", "乡闻", "县知", "郡闻", "州望", "天下知"},
+            "knowledge": {"未学", "粗识", "通文", "经学", "博学", "大家"},
+            "martial": {"文弱", "粗习", "精熟", "骁勇", "虎将", "武圣"},
+        }.get(key, set()):
+            level = default_level
+        result[key] = {"level": level, "detail": detail}
+    return result
+
 
 def normalize_memory(memory: Any) -> Dict[str, list]:
     memory = memory if isinstance(memory, dict) else {}
@@ -74,6 +118,7 @@ def update_long_term_memory(session: Dict[str, Any], memory_update: Any) -> None
                 memory[category].extend(str(value).strip() for value in values if str(value).strip())
                 memory[category] = memory[category][-MAX_MEMORY_ITEMS_PER_CATEGORY:]
     session["long_term_memory"] = memory
+
 
 ERAS = [
     {"name": "夏", "period": "约前2070—前1600"}, {"name": "商", "period": "约前1600—前1046"},
@@ -131,7 +176,8 @@ async def init_game(request: CreateGameRequest):
         reference_document = load_reference_document()
     except FileNotFoundError as error:
         raise HTTPException(status_code=503, detail=f"AI配置失败：{error}，不能开始人生")
-    prompt = build_init_prompt(request.mode, request.era, request.year or "", request.character_type, request.character, request.world_context, reference_document)
+    prompt = build_init_prompt(request.mode, request.era, request.year or "", request.character_type, request.character,
+                               request.world_context, reference_document)
     try:
         output = await call_openai(prompt)
     except AIServiceError as error:
@@ -147,7 +193,7 @@ async def init_game(request: CreateGameRequest):
     flat_character = {
         key: initial_state[key] for key in (
             "name", "age", "gender", "origin", "location", "role", "personality",
-            "health", "education", "marital", "family", "energy", "reputation", "status"
+            "health", "education", "knowledge", "martial", "marital", "family", "energy", "reputation", "mood", "status"
         ) if key in initial_state
     }
     ai_character = {**flat_character, **(nested_character if isinstance(nested_character, dict) else {})}
@@ -157,7 +203,14 @@ async def init_game(request: CreateGameRequest):
         key: value for key, value in request.character.items()
         if key not in {"initial_relationships", "history_event"} and value not in (None, "")
     }
-    initial_state["currentCharacter"] = {**ai_character, **player_character}
+    # Keep the player's creation fields in the canonical character shape used
+    # by the rest of the game.  The API accepts descriptive field names from
+    # the setup form, while gameplay/rendering consistently reads role/family.
+    if request.character.get("occupation"):
+        player_character["role"] = request.character["occupation"]
+    if request.character.get("family_background"):
+        player_character["family"] = request.character["family_background"]
+    initial_state["currentCharacter"] = normalize_character_attributes({**ai_character, **player_character})
     ai_relationships = initial_state.get("relationships") or initial_state.get("relations") or []
     if isinstance(ai_relationships, dict):
         ai_relationships = list(ai_relationships.values())
@@ -173,6 +226,14 @@ async def init_game(request: CreateGameRequest):
             name = str(item["name"]).strip()
             relationships_by_name[name] = {**relationships_by_name.get(name, {}), **item}
     initial_state["relationships"] = list(relationships_by_name.values())
+    if request.character.get("life_goal"):
+        existing_goals = initial_state.get("long_term_goals") or initial_state.get("longTermGoals") or []
+        if isinstance(existing_goals, str):
+            existing_goals = [existing_goals]
+        if not isinstance(existing_goals, list):
+            existing_goals = []
+        initial_state["long_term_goals"] = [request.character["life_goal"],
+                                              *[goal for goal in existing_goals if goal != request.character["life_goal"]]]
     initial_state["worldContext"] = request.world_context
     context_dynamics = request.world_context.get("worldDynamics") or request.world_context.get("world_dynamics") or {
         "local": "\n".join(request.world_context.get("local_dynamics", [])),
@@ -215,9 +276,15 @@ async def init_game(request: CreateGameRequest):
         "state": parsed["initial_state"],
         "history": [],
         "long_term_memory": normalize_memory({
-            "character_facts": [f"人物由玩家创建：{request.character.get('name', '无名')}，身份为{request.character.get('role', '未指定')}。"],
+            "character_facts": [
+                f"人物由玩家创建：{request.character.get('name', '无名')}，职业/擅长为{request.character.get('occupation', '未指定')}。",
+                *([f"家庭背景：{request.character['family_background']}" ] if request.character.get('family_background') else []),
+                *([f"最终人生目标：{request.character['life_goal']}" ] if request.character.get('life_goal') else []),
+            ],
             "world_changes": [],
-            "relationship_changes": [f"初始关系：{item.get('name')}（{item.get('relation', '相识')}）" for item in request.character.get("initial_relationships", []) if isinstance(item, dict) and item.get("name")],
+            "relationship_changes": [f"初始关系：{item.get('name')}（{item.get('relation', '相识')}）" for item in
+                                     request.character.get("initial_relationships", []) if
+                                     isinstance(item, dict) and item.get("name")],
             "important_events": [],
             "open_threads": [],
         }),
@@ -244,7 +311,8 @@ async def play(request: PlayRequest):
     prompt_state = {**session.get("state", {}), **request.current_state}
     prompt_history = (session.get("history", []) + request.history)[-MAX_HISTORY_LENGTH:]
     recent_conversation = session.get("conversation", [])[-RECENT_CONVERSATION_MESSAGES:]
-    prompt = build_play_prompt(prompt_state, prompt_history, request.player_input, request.pace, session.get("long_term_memory"))
+    prompt = build_play_prompt(prompt_state, prompt_history, request.player_input, request.pace,
+                               session.get("long_term_memory"))
     try:
         output = await call_openai(prompt, conversation=recent_conversation)
     except AIServiceError as error:
@@ -255,6 +323,12 @@ async def play(request: PlayRequest):
         {"role": "user", "content": prompt},
         {"role": "assistant", "content": json.dumps(output, ensure_ascii=False)},
     ])
+    if not isinstance(parsed.get("state_updates"), dict):
+        parsed["state_updates"] = {}
+    update_character = parsed["state_updates"].get("currentCharacter") or parsed["state_updates"].get("current_character")
+    parsed["state_updates"]["currentCharacter"] = normalize_character_attributes(
+        update_character if update_character is not None else prompt_state.get("currentCharacter", {}),
+        prompt_state.get("currentCharacter", {}))
     session["state"] = prompt_state
     session["history"] += [{"role": "user", "content": request.player_input},
                            {"role": "system", "content": parsed["narrative"]}]

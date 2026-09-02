@@ -25,7 +25,7 @@ async def call_openai(prompt: str, conversation: Optional[List[Dict[str, str]]] 
     messages.append({"role": "user", "content": prompt})
     payload = {"model": OPENAI_MODEL,
                "messages": messages,
-               "temperature": 0.7, "max_tokens": 4096, "response_format": {"type": "json_object"}}
+               "temperature": 0.7, "max_tokens": 12000, "response_format": {"type": "json_object"}}
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
     try:
         async with httpx.AsyncClient(timeout=90.0) as client:
@@ -71,9 +71,20 @@ def parse_init(output: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def parse_play(output: Dict[str, Any]) -> Dict[str, Any]:
+    new_characters = output.get("new_characters", output.get("new_people", []))
+    if isinstance(new_characters, dict):
+        new_characters = list(new_characters.values())
+    if not isinstance(new_characters, list):
+        new_characters = []
+    appeared = output.get("new_person_appeared", output.get("has_new_person", bool(new_characters)))
+    if isinstance(appeared, str):
+        appeared = appeared.strip().lower() in {"true", "1", "yes", "是", "有"}
     return {"narrative": output.get("narrative", "世界安静地继续运行。"),
             "state_updates": output.get("state_updates", {}),
             "suggested_actions": output.get("suggested_actions", ["继续前行"]),
             "suggested_goals": output.get("suggested_goals", []), "time_elapsed": output.get("time_elapsed", "片刻"),
             "location_changed": output.get("location_changed"), "new_info": output.get("new_info", []),
-            "memory_update": output.get("memory_update", {})}
+            "memory_update": output.get("memory_update", {}),
+            "new_person_appeared": bool(appeared),
+            "new_characters": new_characters,
+            "action_assessment": output.get("action_assessment", {}) if isinstance(output.get("action_assessment", {}), dict) else {}}

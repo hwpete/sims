@@ -12,6 +12,41 @@ const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 const STORAGE = 'history-life-final-v12-save';
 const API_BASE = 'http://127.0.0.1:8000';
 const modeLabels = { strict: '严格历史', restore: '历史还原', legend: '历史传说', free: '自由行动' };
+const ATTRIBUTE_LEVELS = {
+  health: {
+    魁健: '体格强健，极少患病，耐劳耐寒', 健康: '正常体魄，能胜任日常劳动', 尚可: '略有小疾或旧伤，不影响日常但易疲劳',
+    虚弱: '长期病弱或重伤初愈', 衰微: '年老体衰或重病缠身', 濒危: '生命垂危，随时可能死亡'
+  },
+  energy: {
+    充沛: '精神饱满，体力旺盛', 充裕: '正常状态，能应对日常工作', 渐疲: '略有倦意，注意力下降',
+    疲惫: '明显疲劳，需休息恢复', 衰竭: '几近力竭，无法继续行动'
+  },
+  mood: {
+    静明: '内心澄明，思虑清晰', 平宁: '情绪平稳，无大波澜', 忧思: '心事重重，常怀忧虑',
+    愤懑: '怒气积郁，易冲动', 惶惑: '恐惧或迷茫，失去方向', 崩溃: '情绪崩溃，无法理智行动'
+  },
+  reputation: {
+    无名: '乡野小民，无人知晓', 乡闻: '在乡里小有名声', 县知: '一县之内被人知晓',
+    郡闻: '一郡之地皆知', 州望: '一州之名士/能人', 天下知: '名动天下'
+  },
+  knowledge: {
+    未学: '不识字，不通文墨', 粗识: '认识一些字，能写简单文书', 通文: '能阅读经典，写作通顺',
+    经学: '通晓经书，能讲论经典', 博学: '涉猎广泛，知史晓今', 大家: '一代通儒，学问传世'
+  },
+  martial: {
+    文弱: '不通武艺，提刀手软', 粗习: '练过几手，懂些基本套路', 精熟: '武艺熟练，能应对正规士兵',
+    骁勇: '武艺出众，可任百夫长/校尉', 虎将: '万人敌级别，能独当一面', 武圣: '当世无双，名垂战史'
+  }
+};
+const ATTRIBUTE_LABELS = { health: '身体', energy: '精力', mood: '心境', reputation: '声望', knowledge: '知识', martial: '武勇' };
+const ATTRIBUTE_ALIASES = {
+  health: { 强健: '魁健', 良好: '健康', 正常: '健康', 不佳: '尚可', 病弱: '虚弱', 重伤: '尚可', 危重: '濒危', 濒死: '濒危' },
+  energy: { 充足: '充裕', 正常: '充裕', 疲劳: '疲惫', 力竭: '衰竭' },
+  mood: { 平静: '平宁', 稳定: '平宁', 焦虑: '忧思', 恐惧: '惶惑' },
+  reputation: { 默默无闻: '无名', 小有名气: '乡闻', 有名: '县知' },
+  knowledge: { 有限: '粗识', 未入门: '未学', 识字: '粗识' },
+  martial: { 未入门: '文弱', 略懂: '粗习', 熟练: '精熟' }
+};
 const WORLD_BUILD_STEPS = [
   '正在建立世界基础框架……',
   '正在加载中国历史时间轴……',
@@ -107,6 +142,8 @@ const baseState = {
     personality: '',
     health: '健康',
     education: '粗通文字',
+    knowledge: '有限',
+    martial: '未入门',
     marital: '未婚',
     family: ''
   },
@@ -126,6 +163,7 @@ const baseState = {
   relationships: [],
   goals: [],
   current_goals: [],
+  long_term_goals: [],
   completed_goals: [],
   known: [],
   knownMap: { currentLocation: '', knownPlaces: [] },
@@ -187,25 +225,60 @@ async function showWorldBuildProgress() {
   }
 }
 
-function parseInitialRelationships(raw) {
-  return raw
-    .split(/[；;，\n]+/)
-    .map(item => item.trim())
-    .filter(Boolean)
-    .map(item => {
-      const match = item.match(/^(.+?)[（(]([^（）()]+)[）)]$/);
-      const name = (match ? match[1] : item).trim();
-      const relation = (match ? match[2] : '相识').trim();
-      return {
-        name,
-        relation,
-        affinity: '亲近',
-        trust: '初始',
-        score: 60,
-        note: '玩家创建时设定'
-      };
-    })
-    .filter(relation => relation.name);
+const RELATION_DEGREES = { '至亲': '亲密', '宗族': '亲近', '师友': '寻常', '官场/职场': '疏远', '社会往来': '交恶' };
+const RELATION_CATEGORY_DETAILS = {
+  '至亲': '父母、子女、配偶、兄弟姐妹',
+  '宗族': '叔伯、堂表兄弟、族中长辈',
+  '师友': '老师、同学、结拜兄弟、知己',
+  '官场/职场': '上司、下属、同僚、幕主',
+  '社会往来': '同乡、邻居、商人伙伴、恩人/仇人'
+};
+let initialRelationships = [];
+
+function updateRelationCategoryHint() {
+  const category = $('#relationCategoryInput')?.value || '至亲';
+  const hint = $('#relationCategoryHint');
+  if (hint) hint.textContent = `${category}：${RELATION_CATEGORY_DETAILS[category] || '其他社会关系'}。默认关系程度：${RELATION_DEGREES[category] || '寻常'}。`;
+}
+
+function renderInitialRelationships() {
+  const list = $('#relationshipList');
+  if (!list) return;
+  list.innerHTML = initialRelationships.map((item, index) => `
+    <div class="relationship-entry">
+      <span><b>${escapeHtml(item.name)}</b> · ${escapeHtml(item.category)} · ${escapeHtml(item.degree)}</span>
+      <button type="button" data-relation-index="${index}" title="移除关系">×</button>
+    </div>`).join('');
+  list.querySelectorAll('button[data-relation-index]').forEach(button => {
+    button.onclick = () => {
+      initialRelationships.splice(Number(button.dataset.relationIndex), 1);
+      renderInitialRelationships();
+    };
+  });
+}
+
+function addInitialRelationship() {
+  const nameInput = $('#relationNameInput');
+  const categoryInput = $('#relationCategoryInput');
+  const name = nameInput?.value.trim();
+  const category = categoryInput?.value || '社会往来';
+  if (!name) { nameInput?.focus(); return; }
+  initialRelationships.push({ name, category, degree: RELATION_DEGREES[category] || '寻常' });
+  nameInput.value = '';
+  renderInitialRelationships();
+  nameInput.focus();
+}
+
+function getInitialRelationships() {
+  return initialRelationships.map(item => ({
+    name: item.name,
+    relation: item.category,
+    category: item.category,
+    affinity: item.degree,
+    trust: item.degree,
+    score: item.degree === '亲密' ? 90 : item.degree === '亲近' ? 75 : item.degree === '寻常' ? 55 : item.degree === '疏远' ? 30 : 10,
+    note: '玩家创建时设定'
+  }));
 }
 
 function mergeRelationships(aiRelationships, playerRelationships) {
@@ -221,6 +294,119 @@ function mergeRelationships(aiRelationships, playerRelationships) {
   return [...byName.values()];
 }
 
+function normalizeNewCharacter(person) {
+  if (!person || typeof person !== 'object') return null;
+  const name = String(person.name || person.full_name || '').trim();
+  if (!name) return null;
+  return {
+    name,
+    identity: person.identity || person.occupation || person.role || '身份未明',
+    relation: person.relation || person.relationship || '初次相识',
+    affinity: person.affinity || '待观察',
+    trust: person.trust || '初识',
+    note: person.note || person.description || '本次行动中结识'
+  };
+}
+
+function mergeNewCharacters(characters) {
+  const incoming = (Array.isArray(characters) ? characters : [])
+    .map(normalizeNewCharacter).filter(Boolean);
+  if (!incoming.length) return [];
+  const existing = new Map((state.relationships || []).filter(r => r?.name).map(r => [String(r.name).trim(), r]));
+  incoming.forEach(person => {
+    const previous = existing.get(person.name) || {};
+    existing.set(person.name, { ...previous, ...person, isNew: true });
+  });
+  state.relationships = [...existing.values()];
+  return incoming;
+}
+
+function newCharacterLog(characters) {
+  return characters.map(person =>
+    `新人物：${person.name}\n身份：${person.identity}\n关系：${person.relation}\n备注：${person.note}`
+  ).join('\n\n');
+}
+
+function formatFamily(family) {
+  if (!family) return '<div class="info-line"><span>家庭</span><span>未记载</span></div>';
+  const entries = Array.isArray(family)
+    ? family.map(item => [item?.role || item?.relation || '家人', item?.name ? `${item.name}${(item.identity || item.occupation || item.profession || item.status) ? `，身份：${item.identity || item.occupation || item.profession || item.status}` : ''}` : String(item)])
+      : typeof family === 'object'
+      ? Object.entries(family).map(([role, value]) => {
+        if (value && typeof value === 'object') {
+          const name = value.name || value.full_name || '';
+          const identity = value.identity || value.occupation || value.profession || value.role || value.status || '';
+          return [role, `${name}${identity ? `，身份：${identity}` : ''}`.trim()];
+        }
+        return [role, String(value)];
+      })
+      : String(family).split(/[\n；;]+/).map(item => {
+        const match = item.trim().match(/^([^：:]+)[：:](.+)$/);
+        return match ? [match[1].trim(), match[2].trim()] : ['家庭', item.trim()];
+      });
+  return entries.filter(([, value]) => value).map(([role, value]) =>
+    `<div class="info-line"><span>${escapeHtml(role)}</span><span>${escapeHtml(value)}</span></div>`
+  ).join('') || '<div class="info-line"><span>家庭</span><span>未记载</span></div>';
+}
+
+function normalizeGoals(value) {
+  if (Array.isArray(value)) return value.map(item => {
+    if (typeof item === 'string') return item;
+    if (item && typeof item === 'object') return item.title || item.name || item.goal || item.description || '';
+    return String(item ?? '');
+  }).filter(Boolean);
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  return [];
+}
+
+function normalizeHealth(value) {
+  const text = String(value && typeof value === 'object' ? (value.level || value.summary || value.value || '') : (value || '')).trim();
+  if (!text) return '健康';
+  if (/魁健|健康|尚可|虚弱|衰微|濒危/.test(text)) return text.match(/魁健|健康|尚可|虚弱|衰微|濒危/)[0];
+  if (/强健/.test(text)) return '魁健';
+  if (/良好|正常/.test(text)) return '健康';
+  if (/危重|濒死|生命垂危/.test(text)) return '危重';
+  if (/重伤|重创|骨折|昏迷/.test(text)) return '重伤';
+  if (/不佳|病弱|患病|发热|受伤|伤势/.test(text)) return '不佳';
+  if (/良好|康健|健壮/.test(text)) return '良好';
+  return '健康';
+}
+
+function normalizeAttribute(key, value, fallback) {
+  const raw = value && typeof value === 'object' ? (value.level || value.summary || value.value) : value;
+  const text = String(raw || fallback || '').trim();
+  const levels = ATTRIBUTE_LEVELS[key] || {};
+  const matched = Object.keys(levels).find(level => text === level || text.startsWith(level));
+  const level = ATTRIBUTE_ALIASES[key]?.[matched || text] || matched || fallback;
+  const detail = value && typeof value === 'object' && value.detail ? String(value.detail) : (levels[level] || text || '');
+  return { level, detail };
+}
+
+function getAttribute(key, fallback) {
+  return normalizeAttribute(key, state.character?.[key], fallback);
+}
+
+function normalizeCharacterAttributes(character) {
+  const target = character || {};
+  const defaults = { health: '健康', energy: '充裕', mood: '平宁', reputation: '无名', knowledge: '粗识', martial: '文弱' };
+  Object.keys(defaults).forEach(key => {
+    target[key] = normalizeAttribute(key, target[key], defaults[key]);
+  });
+  return target;
+}
+
+function renderStatusDetail() {
+  const body = $('#statusDetailBody');
+  if (!body) return;
+  const rows = Object.keys(ATTRIBUTE_LABELS).map(key => {
+    const attr = getAttribute(key, Object.keys(ATTRIBUTE_LEVELS[key])[0]);
+    return `<div class="status-detail-row"><header><b>${ATTRIBUTE_LABELS[key]}</b><span>${escapeHtml(attr.level)}</span></header><p>${escapeHtml(attr.detail)}</p></div>`;
+  }).join('');
+  body.innerHTML = rows;
+  const dialog = $('#statusDetailDialog');
+  if (dialog && typeof dialog.showModal === 'function') dialog.showModal();
+}
+
 // ---- 视图切换 ----
 function renderSetup() {
   $('#setupView').classList.remove('hidden');
@@ -230,21 +416,58 @@ function renderSetup() {
 function openInitializationPreview(data) {
   const dialog = $('#initializationDialog');
   if (!dialog) return;
-  const world = data.world_background || '世界背景暂无内容。';
-  const character = data.character_intro || '人物资料暂无内容。';
+  const yearLabel = state.time.year || pendingInitialization?.yearResolved || '当前年份';
+  const world = ensureInitializationTitle(data.world_background || '世界背景暂无内容。', `【世界建立完成 · ${yearLabel}】`);
+  const character = ensureInitializationTitle(data.character_intro || '人物资料暂无内容。', `【人物创建完成 · ${yearLabel} · ${state.time.era || '当前时代'}】`);
   const dynamics = pendingInitialization?.dynamicsText || '暂无额外世界动态。';
-  const suggestions = pendingInitialization?.suggestions || [];
   const map = pendingInitialization?.knownMap;
   const extra = [
     dynamics,
-    suggestions.length ? `\n【现在可以做什么】\n${suggestions.map((item, index) => `${index + 1}. ${item}`).join('\n')}` : '',
     map?.currentLocation ? `\n【当前位置】\n${map.currentLocation}` : ''
   ].filter(Boolean).join('\n');
-  $('#worldInitializationPreview').textContent = world;
-  $('#characterInitializationPreview').textContent = character;
-  $('#dynamicsInitializationPreview').textContent = extra || '暂无额外世界动态。';
+  $('#worldInitializationPreview').innerHTML = formatAiText(world);
+  $('#characterInitializationPreview').innerHTML = formatAiText(character);
+  $('#dynamicsInitializationPreview').innerHTML = formatAiText(extra || '暂无额外世界动态。');
   if (typeof dialog.showModal === 'function') dialog.showModal();
   else dialog.setAttribute('open', '');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+
+function formatAiText(value) {
+  const lines = String(value ?? '').replace(/\r\n?/g, '\n').split('\n');
+  return lines.map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return '<div class="rich-spacer"></div>';
+    if (/^---+$/.test(trimmed)) return '<hr>';
+    const heading = trimmed.match(/^(?:#{1,4}\s*|【)(.+?)(?:】)?$/);
+    if (heading && (trimmed.startsWith('#') || trimmed.startsWith('【'))) {
+      return `<h4>${escapeHtml(heading[1])}</h4>`;
+    }
+    const list = trimmed.match(/^(?:[-*]\s+|\d+[.、]\s+)(.+)$/);
+    const healthLine = trimmed.match(/^\*{0,2}(身体状态|身体|健康状况)\*{0,2}[：:]\s*(.+)$/);
+    if (healthLine) {
+      return `<div><strong>${escapeHtml(healthLine[1])}：</strong>${normalizeHealth(healthLine[2])}</div>`;
+    }
+    let text = escapeHtml(list ? list[1] : trimmed)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    const speaker = text.match(/^(父亲|母亲|祖父|祖母|兄长|姐姐|弟弟|妹妹|族叔|族兄|其他人|旁人|县令|管事|护院)：/);
+    if (speaker) text = `<strong>${speaker[1]}：</strong>${text.slice(speaker[0].length)}`;
+    return list ? `<div class="rich-list-item">${text}</div>` : `<div>${text}</div>`;
+  }).join('');
+}
+
+function sanitizeInitializationText(value) {
+  return String(value ?? '').replace(/(?:^|\n)\s*【现在可以做什么】[\s\S]*?(?=\n\s*【[^】]+】|$)/g, '').trim();
+}
+
+function ensureInitializationTitle(value, title) {
+  const text = sanitizeInitializationText(value);
+  return /^【[^】]+】/.test(text) ? text : `${title}\n\n${text}`;
 }
 
 function confirmInitialization() {
@@ -266,6 +489,8 @@ function cancelInitialization() {
   else dialog?.removeAttribute('open');
   // Initialization has not been confirmed, so it must not become a save.
   localStorage.removeItem(STORAGE);
+  initialRelationships = [];
+  renderInitialRelationships();
   state = structuredClone(baseState);
   renderSetup();
   setWorldBuildProgress('');
@@ -281,6 +506,8 @@ function renderGame() {
   $('#profileName').textContent = c.name;
   $('#portraitChar').textContent = c.name[0] || '人';
   $('#profileRole').textContent = `${c.role} · ${c.age}岁`;
+  const healthPill = $('.status-pill');
+  if (healthPill) healthPill.textContent = getAttribute('health', '健康').level;
   $('#headerTime').textContent = formatTime();
   $('#worldLabel').textContent = `${t.era} · ${c.location.split(' · ').slice(-1)[0]}`;
   $('#eraName').textContent = t.era;
@@ -289,8 +516,10 @@ function renderGame() {
   $('#seasonText').textContent = `${t.season} · ${t.solar}`;
   $('#locationText').textContent = c.location;
   $('#locationSummary').textContent = c.location;
-  $('#locationDescription').textContent = state.worldDynamics?.local || '你所在的地方自有其秩序。';
-  $('#currencyValue').textContent = state.currency.toLocaleString();
+  const locationDescription = $('#locationDescription');
+  if (locationDescription) locationDescription.textContent = state.worldDynamics?.local || '';
+  const currency = $('#currencyValue');
+  if (currency) currency.textContent = state.currency.toLocaleString();
 
   renderGoals();
   renderInventoryPreview();
@@ -302,13 +531,37 @@ function renderGame() {
 function renderGoals() {
   const list = $('#goalList');
   list.innerHTML = '';
-  const goals = state.current_goals || [];
+  const goals = normalizeGoals(state.current_goals);
+  const longTermGoals = normalizeGoals(state.long_term_goals).length
+    ? normalizeGoals(state.long_term_goals) : normalizeGoals(state.goals);
+  if (goals.length) {
+    const title = document.createElement('div');
+    title.className = 'goal-group-title';
+    title.textContent = '近期目标';
+    list.appendChild(title);
+  }
   goals.forEach((g, i) => {
     const el = document.createElement('div');
     el.className = 'goal';
     el.textContent = g;
     el.onclick = () => {
       $('#actionInput').value = `我想完成这个小目标：${g}`;
+      $('#actionInput').focus();
+    };
+    list.appendChild(el);
+  });
+  if (longTermGoals.length) {
+    const title = document.createElement('div');
+    title.className = 'goal-group-title';
+    title.textContent = '远期目标';
+    list.appendChild(title);
+  }
+  longTermGoals.forEach(g => {
+    const el = document.createElement('div');
+    el.className = 'goal';
+    el.textContent = g;
+    el.onclick = () => {
+      $('#actionInput').value = `我想推进这个远期目标：${g}`;
       $('#actionInput').focus();
     };
     list.appendChild(el);
@@ -320,7 +573,7 @@ function renderGoals() {
     el.textContent = `✓ ${g}`;
     list.appendChild(el);
   });
-  const count = goals.length;
+  const count = goals.length + longTermGoals.length;
   const el = $('#goalCount');
   if (el) el.textContent = String(count).padStart(2, '0');
 }
@@ -328,7 +581,7 @@ function renderGoals() {
 function renderInventoryPreview() {
   const el = $('#inventoryPreview');
   const items = state.inventory || [];
-  el.innerHTML = items.slice(0, 3).map(i =>
+  el.innerHTML = items.map(i =>
       `<div class="item-row"><span>${i.name}</span><span>×${i.qty}</span></div>`
   ).join('');
   if (items.length === 0) el.innerHTML = '<div class="item-row" style="color:#b0a08a;">空</div>';
@@ -368,7 +621,7 @@ function renderStory() {
     card.innerHTML = `
       ${showMeta ? `<div class="story-meta"><b>${l.time}</b><span>${l.location} · ${l.duration || '片刻'}</span></div>` : ''}
       ${isLatestTag ? '<span class="tag">本次行动</span>' : ''}
-      <p>${l.text}</p>
+      <div class="rich-text">${formatAiText(l.text)}</div>
       ${extraHtml}
     `;
     stream.appendChild(card);
@@ -433,23 +686,36 @@ function renderRight(tab) {
   const el = $('#rightContent');
   if (tab === 'status') {
     const c = state.character;
+    const health = getAttribute('health', '健康');
+    const energy = getAttribute('energy', '充裕');
+    const mood = getAttribute('mood', '平宁');
+    const reputation = getAttribute('reputation', '无名');
+    const knowledge = getAttribute('knowledge', '未学');
+    const martial = getAttribute('martial', '文弱');
     el.innerHTML = `
       <h2 class="detail-title">${c.name} · 人物档案</h2>
-      <div class="stat-grid">
-        <div class="stat"><label>年龄</label><b>${c.age}岁</b></div>
-        <div class="stat"><label>身体</label><b>${c.health || '健康'}</b></div>
-        <div class="stat"><label>财富</label><b>${(state.currency || 0).toLocaleString()}钱</b></div>
-        <div class="stat"><label>婚姻</label><b>${c.marital || '未婚'}</b></div>
+      <div class="info-group status-group"><h3>人物状态</h3>
+      <div class="stat-grid status-summary" id="statusSummary" role="button" tabindex="0" title="点击查看属性详情">
+        <div class="stat"><label>身体</label><b>${health.level}</b></div>
+        <div class="stat"><label>精力</label><b>${energy.level}</b></div>
+        <div class="stat"><label>心境</label><b>${mood.level}</b></div>
+        <div class="stat"><label>声望</label><b>${reputation.level}</b></div>
+        <div class="stat"><label>知识</label><b>${knowledge.level}</b></div>
+        <div class="stat"><label>武勇</label><b>${martial.level}</b></div>
+        <span class="status-summary-hint">点击查看详情</span>
+      </div>
       </div>
       <div class="info-group"><h3>身份与出身</h3>
+        <div class="info-line"><span>年龄</span><span>${c.age}岁</span></div>
         <div class="info-line"><span>籍贯</span><span>${c.origin || '未知'}</span></div>
         <div class="info-line"><span>当前身份</span><span>${c.role || '百姓'}</span></div>
         <div class="info-line"><span>性格</span><span>${c.personality || '未设定'}</span></div>
         <div class="info-line"><span>教育</span><span>${c.education || '未记载'}</span></div>
+        <div class="info-line"><span>婚姻</span><span>${c.marital || '未婚'}</span></div>
         <div class="info-line"><span>户籍</span><span>民籍</span></div>
       </div>
       <div class="info-group"><h3>家庭</h3>
-        <div class="info-line"><span>家庭</span><span>${c.family || '未记载'}</span></div>
+        <div class="family-lines">${formatFamily(c.family)}</div>
       </div>
       <div class="info-group"><h3>世界动态</h3>
         <div class="info-line"><span>本地</span><span>${state.worldDynamics?.local || '暂无'}</span></div>
@@ -464,7 +730,7 @@ function renderRight(tab) {
       ${rels.length === 0 ? '<p style="color:#8a7a66;">尚未建立关系</p>' :
         rels.map(r => `
           <div class="relation-card">
-            <div><b>${r.name}</b><small>${r.relation || ''}</small><small>${r.note || ''}</small></div>
+            <div><b>${r.name}</b><small>${r.identity || ''}</small><small>${r.relation || ''}</small><small>${r.note || ''}</small></div>
             <div class="relation-score">${r.affinity || ''}<i>${r.trust || ''}</i></div>
           </div>
         `).join('')}
@@ -485,6 +751,16 @@ function renderRight(tab) {
       </div>
     `;
   }
+  const statusSummary = $('#statusSummary');
+  if (statusSummary) {
+    statusSummary.onclick = renderStatusDetail;
+    statusSummary.onkeydown = event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        renderStatusDetail();
+      }
+    };
+  }
 }
 
 // ---- 背包 ----
@@ -497,7 +773,6 @@ function showInventory() {
     <div class="dialog-body">
       ${items.length === 0 ? '<div style="color:#8a7a66;">背包为空</div>' :
       items.map(i => `<div class="asset-line"><span>${i.name} ×${i.qty}</span><b>${i.condition || '良好'}</b></div>`).join('')}
-      <div class="asset-line"><span>现金</span><b>${(state.currency || 0).toLocaleString()} 铜钱</b></div>
       ${assets.length > 0 ? assets.map(i => `<div class="asset-line"><span>${i.name}</span><b>${i.value || ''}</b></div>`).join('') : ''}
     </div>
   `;
@@ -619,7 +894,11 @@ async function loadEraList() {
 // ---- 应用状态更新 ----
 function applyStateUpdates(updates) {
   if (!updates) return;
-  if (updates.currentCharacter) Object.assign(state.character, updates.currentCharacter);
+  const characterUpdates = updates.currentCharacter || updates.current_character;
+  if (characterUpdates) {
+    Object.assign(state.character, characterUpdates);
+    normalizeCharacterAttributes(state.character);
+  }
   if (updates.worldDynamics) {
     if (!state.worldDynamics) state.worldDynamics = {};
     Object.assign(state.worldDynamics, updates.worldDynamics);
@@ -643,6 +922,8 @@ function applyStateUpdates(updates) {
   }
   if (updates.time) Object.assign(state.time, updates.time);
   if (updates.suggested_goals) state.current_goals = updates.suggested_goals;
+  if (updates.current_goals) state.current_goals = updates.current_goals;
+  if (updates.long_term_goals) state.long_term_goals = updates.long_term_goals;
   if (updates.completed_goals) {
     if (!state.completed_goals) state.completed_goals = [];
     updates.completed_goals.forEach(g => {
@@ -701,6 +982,7 @@ async function executePlayerAction(input, isRetry = false) {
         relationships: state.relationships,
         goals: state.goals,
         current_goals: state.current_goals,
+        long_term_goals: state.long_term_goals,
         completed_goals: state.completed_goals,
         known: state.known,
         knownMap: state.knownMap,
@@ -719,8 +1001,12 @@ async function executePlayerAction(input, isRetry = false) {
     });
 
     if (data.state_updates) applyStateUpdates(data.state_updates);
+    const newCharacters = mergeNewCharacters(data.new_characters);
     if (data.suggested_actions && data.suggested_actions.length > 0) {
       state.suggestions = data.suggested_actions;
+    }
+    if (data.suggested_goals && data.suggested_goals.length > 0) {
+      state.current_goals = data.suggested_goals;
     }
 
     if (isRetry) {
@@ -738,6 +1024,33 @@ async function executePlayerAction(input, isRetry = false) {
     };
     if (!state.logs) state.logs = [];
     state.logs.push(logEntry);
+    if (newCharacters.length) {
+      state.logs.push({
+        id: generateEntryId(),
+        type: 'system',
+        time: formatTime(),
+        location: state.character.location || '未知',
+        duration: '人物关系',
+        text: `【新人物出现】\n\n${newCharacterLog(newCharacters)}`,
+        pace: 'system'
+      });
+    }
+    if (data.action_assessment && (data.action_assessment.reason || data.action_assessment.feasibility)) {
+      const assessment = data.action_assessment;
+      const attributeLabels = { health: '身体', energy: '精力', knowledge: '知识', martial: '武勇', reputation: '声望', mood: '心境' };
+      const effects = Object.entries(assessment.attribute_effects || {})
+        .filter(([, value]) => value !== undefined && value !== null && String(value).trim())
+        .map(([key, value]) => `${attributeLabels[key] || key}：${value}`).join('；');
+      state.logs.push({
+        id: generateEntryId(),
+        type: 'system',
+        time: formatTime(),
+        location: state.character.location || '未知',
+        duration: '行动评估',
+        text: `【行动评估】\n结论：${assessment.feasibility || '已结算'}\n依据：${assessment.reason || '已结合人物档案属性判断。'}${assessment.energy_cost ? `\n精力消耗：${assessment.energy_cost}` : ''}${assessment.risk ? `\n风险：${assessment.risk}` : ''}${effects ? `\n属性变化：${effects}` : ''}`,
+        pace: 'system'
+      });
+    }
     if (state.logs.length > 100) state.logs = state.logs.slice(-100);
 
     saveState();
@@ -852,8 +1165,10 @@ $$('.tab').forEach(b => {
 });
 
 // 背包
-$('#inventoryBtn').onclick = showInventory;
-$$('.close-dialog').forEach(b => b.onclick = () => $('#inventoryDialog').close());
+const inventoryBtn = $('#inventoryBtn');
+if (inventoryBtn) inventoryBtn.onclick = showInventory;
+$('#inventoryDialog')?.querySelectorAll('.close-dialog').forEach(b => b.onclick = () => $('#inventoryDialog').close());
+$('.status-detail-close')?.addEventListener('click', () => $('#statusDetailDialog')?.close());
 
 // 行动提交
 $('#actionForm').onsubmit = async (e) => {
@@ -884,6 +1199,7 @@ $('#exportBtn').onclick = () => {
     relationships: state.relationships,
     logs: state.logs,
     current_goals: state.current_goals,
+    long_term_goals: state.long_term_goals,
     completed_goals: state.completed_goals,
     worldDynamics: state.worldDynamics,
     knownMap: state.knownMap
@@ -901,6 +1217,8 @@ $('#newGameBtn').onclick = () => {
   if (confirm('结束当前人生并回到创建页面？')) {
     localStorage.removeItem(STORAGE);
     pendingInitialization = null;
+    initialRelationships = [];
+    renderInitialRelationships();
     state = structuredClone(baseState);
     renderSetup();
   }
@@ -913,6 +1231,13 @@ $('#initializationDialog').addEventListener('cancel', (event) => {
   event.preventDefault();
   cancelInitialization();
 });
+
+$('#addRelationBtn')?.addEventListener('click', addInitialRelationship);
+$('#relationNameInput')?.addEventListener('keydown', event => {
+  if (event.key === 'Enter') { event.preventDefault(); addInitialRelationship(); }
+});
+$('#relationCategoryInput')?.addEventListener('change', updateRelationCategoryHint);
+updateRelationCategoryHint();
 
 // 年份解析
 $('#resolveYearBtn').onclick = async () => {
@@ -953,14 +1278,16 @@ $('#startBtn').onclick = async () => {
       yearResolved = '由 AI 确定';
     }
 
-    const playerRelationships = parseInitialRelationships($('#charRelations').value);
+    const playerRelationships = getInitialRelationships();
     const character = {
       name: $('#charName').value.trim() || '无名',
       age: Number($('#charAge').value) || 14,
       gender: $('#charGender').value,
       origin: $('#charOrigin').value.trim() || '',
-      role: $('#charRole').value.trim() || '',
       personality: $('#charPersonality').value.trim() || '',
+      family_background: $('#charFamily').value.trim() || '',
+      occupation: $('#charOccupation').value.trim() || '',
+      life_goal: $('#charGoal').value.trim() || '',
       initial_relationships: playerRelationships,
       history_event: historyEvent
     };
@@ -998,15 +1325,18 @@ $('#startBtn').onclick = async () => {
       ...aiCharacter,
       ...character
     };
+    if (character.occupation) state.character.role = character.occupation;
+    if (character.family_background) state.character.family = character.family_background;
     if (!character.origin) state.character.origin = aiCharacter.origin || state.character.origin;
-    if (!character.role) state.character.role = aiCharacter.role || state.character.role;
     if (!character.personality) state.character.personality = aiCharacter.personality || state.character.personality;
     delete state.character.initial_relationships;
     delete state.character.history_event;
+    normalizeCharacterAttributes(state.character);
     if (aiState.time) Object.assign(state.time, aiState.time);
     if (aiState.inventory) {
       state.inventory = aiState.inventory.items || [];
-      if (aiState.inventory.currency) state.currency = aiState.inventory.currency.copper || 0;
+      // Currency is intentionally not initialized; it appears only after gameplay changes it.
+      state.currency = 0;
     }
     state.relationships = mergeRelationships(aiState.relationships || aiState.relations, playerRelationships);
     if (aiState.knownMap) {
@@ -1016,8 +1346,15 @@ $('#startBtn').onclick = async () => {
     if (aiState.worldDynamics || aiState.world_dynamics) state.worldDynamics = aiState.worldDynamics || aiState.world_dynamics;
     state.worldContext = aiState.worldContext || worldContext;
     if (aiState.current_goals || aiState.currentGoals) state.current_goals = aiState.current_goals || aiState.currentGoals;
+    if (aiState.long_term_goals || aiState.longTermGoals) state.long_term_goals = aiState.long_term_goals || aiState.longTermGoals;
+    if (aiState.goals && !state.long_term_goals.length) state.long_term_goals = aiState.goals;
+    if (character.life_goal) {
+      const existingGoals = normalizeGoals(state.long_term_goals);
+      state.long_term_goals = [character.life_goal, ...existingGoals.filter(goal => goal !== character.life_goal)];
+    }
     if (data.suggested_actions) state.suggestions = data.suggested_actions;
     if (aiState.available_actions) state.suggestions = aiState.available_actions;
+    if (data.suggested_goals?.length) state.current_goals = data.suggested_goals;
 
     const worldDynamics = state.worldDynamics || {};
     const dynamicsText = [
