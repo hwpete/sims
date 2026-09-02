@@ -399,7 +399,7 @@
     }
     .relationship-editor {
       display: grid;
-      grid-template-columns: 1fr 1fr auto;
+      grid-template-columns: minmax(120px, 1.2fr) minmax(110px, 1fr) minmax(130px, 1.2fr) minmax(90px, .8fr) auto;
       gap: 8px;
       align-items: end;
     }
@@ -1726,6 +1726,12 @@
       .form-row {
         grid-template-columns: 1fr;
       }
+      .relationship-editor {
+        grid-template-columns: 1fr;
+      }
+      .relationship-editor button {
+        width: 100%;
+      }
       .setup-footer {
         grid-template-columns: 1fr;
         gap: 8px;
@@ -1917,6 +1923,14 @@
                 <option value="师友">师友 · 寻常</option>
                 <option value="官场/职场">官场/职场 · 疏远</option>
                 <option value="社会往来">社会往来 · 交恶</option>
+              </select>
+              <select id="relationTypeInput" aria-label="具体关系"></select>
+              <select id="relationDegreeInput" aria-label="亲密度">
+                <option value="亲密">亲密</option>
+                <option value="亲近">亲近</option>
+                <option value="寻常">寻常</option>
+                <option value="疏远">疏远</option>
+                <option value="交恶">交恶</option>
               </select>
               <button type="button" id="addRelationBtn" class="secondary-btn">添加</button>
             </div>

@@ -233,12 +233,27 @@ const RELATION_CATEGORY_DETAILS = {
   '官场/职场': '上司、下属、同僚、幕主',
   '社会往来': '同乡、邻居、商人伙伴、恩人/仇人'
 };
+const RELATION_TYPES = {
+  '至亲': ['父母', '子女', '配偶', '兄弟姐妹'],
+  '宗族': ['叔伯', '堂兄弟', '堂姐妹', '表兄弟', '表姐妹', '族中长辈'],
+  '师友': ['老师', '同学', '结拜兄弟', '知己'],
+  '官场/职场': ['上司', '下属', '同僚', '幕主'],
+  '社会往来': ['同乡', '邻居', '商人伙伴', '恩人', '仇人']
+};
 let initialRelationships = [];
 
 function updateRelationCategoryHint() {
   const category = $('#relationCategoryInput')?.value || '至亲';
   const hint = $('#relationCategoryHint');
   if (hint) hint.textContent = `${category}：${RELATION_CATEGORY_DETAILS[category] || '其他社会关系'}。默认关系程度：${RELATION_DEGREES[category] || '寻常'}。`;
+  const typeSelect = $('#relationTypeInput');
+  if (typeSelect) {
+    const previous = typeSelect.value;
+    typeSelect.innerHTML = (RELATION_TYPES[category] || ['相识']).map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join('');
+    if ((RELATION_TYPES[category] || []).includes(previous)) typeSelect.value = previous;
+  }
+  const degreeSelect = $('#relationDegreeInput');
+  if (degreeSelect && RELATION_DEGREES[category]) degreeSelect.value = RELATION_DEGREES[category];
 }
 
 function renderInitialRelationships() {
@@ -246,7 +261,7 @@ function renderInitialRelationships() {
   if (!list) return;
   list.innerHTML = initialRelationships.map((item, index) => `
     <div class="relationship-entry">
-      <span><b>${escapeHtml(item.name)}</b> · ${escapeHtml(item.category)} · ${escapeHtml(item.degree)}</span>
+      <span><b>${escapeHtml(item.name)}</b> · ${escapeHtml(item.category)} · ${escapeHtml(item.relationType || '相识')} · ${escapeHtml(item.degree)}</span>
       <button type="button" data-relation-index="${index}" title="移除关系">×</button>
     </div>`).join('');
   list.querySelectorAll('button[data-relation-index]').forEach(button => {
@@ -260,10 +275,14 @@ function renderInitialRelationships() {
 function addInitialRelationship() {
   const nameInput = $('#relationNameInput');
   const categoryInput = $('#relationCategoryInput');
+  const typeInput = $('#relationTypeInput');
+  const degreeInput = $('#relationDegreeInput');
   const name = nameInput?.value.trim();
   const category = categoryInput?.value || '社会往来';
+  const relationType = typeInput?.value || '相识';
+  const degree = degreeInput?.value || RELATION_DEGREES[category] || '寻常';
   if (!name) { nameInput?.focus(); return; }
-  initialRelationships.push({ name, category, degree: RELATION_DEGREES[category] || '寻常' });
+  initialRelationships.push({ name, category, relationType, degree });
   nameInput.value = '';
   renderInitialRelationships();
   nameInput.focus();
@@ -272,8 +291,9 @@ function addInitialRelationship() {
 function getInitialRelationships() {
   return initialRelationships.map(item => ({
     name: item.name,
-    relation: item.category,
+    relation: item.relationType || item.category,
     category: item.category,
+    relation_type: item.relationType || item.category,
     affinity: item.degree,
     trust: item.degree,
     score: item.degree === '亲密' ? 90 : item.degree === '亲近' ? 75 : item.degree === '寻常' ? 55 : item.degree === '疏远' ? 30 : 10,

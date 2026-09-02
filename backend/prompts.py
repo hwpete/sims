@@ -40,7 +40,7 @@ def build_init_prompt(mode: str, era: str, year: str, character_type: str, chara
 玩家提供的附近世界资料（必须作为本次人生的初始记忆，后续行动继续遵守）：\n{json.dumps(world_context, ensure_ascii=False, indent=2)}
 玩家提供的人物信息：\n{json.dumps(character, ensure_ascii=False, indent=2)}
 玩家提供的 name、personality、origin、family_background、occupation、life_goal 及 initial_relationships 为权威设定，必须原样保留：
-- 不得改名、替换性格、家庭背景、职业/擅长或人生目标，也不得删除或改写初始关系中的姓名、类别与关系程度。
+- 不得改名、替换性格、家庭背景、职业/擅长或人生目标，也不得删除或改写初始关系中的姓名、类别、具体关系与关系程度。
 - 可以补充健康、教育、地点、资产、关系背景等未指定信息。
 - initial_state 中请使用 currentCharacter 字段承载人物资料，使用 relationships 数组承载所有初始关系。
 - 必须把附近世界资料融入 world_background、worldDynamics 和 knownMap；不得把玩家尚未合理得知的远方信息直接当作已知事实。
@@ -51,7 +51,7 @@ def build_init_prompt(mode: str, era: str, year: str, character_type: str, chara
 - 身体、精力、心境、声望、知识、武勇必须按上面的标准等级返回概述和详情对象；不要自造等级。
 - initial_state.currentCharacter 可包含 mood、energy、reputation、knowledge、martial、status 等人物属性；initial_state.current_goals 为近期目标数组，initial_state.long_term_goals 为远期目标数组。目标应体现 AI 代入人物后基于身份、资源、关系与局势最合理的打算。
 - 玩家填写的 life_goal 是人物的最终人生目标，必须写入 initial_state.long_term_goals，作为远期目标的核心，不得改写。
-- 初始关系的类别与默认程度固定对应：至亲→亲密，宗族→亲近，师友→寻常，官场/职场→疏远，社会往来→交恶；不得擅自改成其他类别或程度。
+- 初始关系包含关系大类 category、具体关系 relation_type/relation 和亲密度 affinity/trust；关系大类的默认程度为至亲→亲密、宗族→亲近、师友→寻常、官场/职场→疏远、社会往来→交恶，但玩家在创建页明确选择的亲密度优先，必须原样保留。
 - initial_state.worldDynamics 请包含 local、regional、national、nearby、current_events、possible_impacts；initial_state.knownMap 请包含 currentLocation、nearbyPlaces、knownRoads、knownCities、knownRegions、unknownRegions。
 - suggested_actions 和 initial_state.available_actions 仅作为进入游戏后的行动建议，不要拼接到 world_background 或 character_intro 的正文中；玩家始终可以自由输入其他行动。
 请返回 JSON；initial_state.currentCharacter 的六项属性必须为含 level 和 detail 的对象，例如 health={{"level":"健康","detail":"正常体魄，能胜任日常劳动"}}；同时返回 current_goals、long_term_goals、worldDynamics、knownMap、relationships、world_background、character_intro、suggested_actions。"""
