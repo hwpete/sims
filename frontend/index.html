@@ -149,10 +149,10 @@
     .setup-hero {
       flex: 1;
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 40px;
+      grid-template-columns: minmax(300px, .72fr) minmax(620px, 1.28fr);
+      gap: 32px;
       padding: 40px 48px 32px;
-      max-width: 1200px;
+      max-width: 1360px;
       margin: 0 auto;
       width: 100%;
       align-items: start;
@@ -1642,7 +1642,7 @@
     /* ============================================================
        响应式
        ============================================================ */
-    @media (max-width: 1100px) {
+    @media (max-width: 900px) {
       .right-panel {
         width: 220px;
         min-width: 220px;
@@ -1943,12 +1943,6 @@
                   <label><input type="checkbox" value="深思熟虑">深思熟虑</label><label><input type="checkbox" value="直觉果断">直觉果断</label><label><input type="checkbox" value="犹豫不决">犹豫不决</label><label><input type="checkbox" value="顺势而为">顺势而为</label>
                 </div>
               </details>
-              <details class="personality-dropdown" data-trait-dimension="情绪底色">
-                <summary><span>情绪底色</span><span class="personality-selected">未选择</span></summary>
-                <div class="personality-options">
-                  <label><input type="checkbox" value="沉稳">沉稳</label><label><input type="checkbox" value="热烈">热烈</label><label><input type="checkbox" value="忧郁">忧郁</label><label><input type="checkbox" value="平和">平和</label><label><input type="checkbox" value="急躁">急躁</label><label><input type="checkbox" value="淡然">淡然</label>
-                </div>
-              </details>
             </div>
           </div>
         </div>
@@ -2167,6 +2161,6 @@
   </dialog>
 </div>
 
-<script src="app.js?v=20260902-3"></script>
+<script src="app.js?v=20260903-1"></script>
 </body>
 </html>
