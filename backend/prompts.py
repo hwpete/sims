@@ -22,7 +22,10 @@ def load_reference_document() -> str:
     """Load the full user-provided simulator specification for first-run context."""
     path = Path(__file__).resolve().parents[1] / "data" / "历史人物模拟.txt"
     if path.is_file():
-        return path.read_text(encoding="utf-8-sig")
+        # Preserve every substantive line from the attachment while removing
+        # repeated blank lines that only consume provider context capacity.
+        content = path.read_text(encoding="utf-8-sig")
+        return "\n".join(line.rstrip() for line in content.splitlines() if line.strip())
     raise FileNotFoundError(f"初始化参考文档不存在：{path}")
 
 

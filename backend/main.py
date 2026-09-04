@@ -179,7 +179,10 @@ async def init_game(request: CreateGameRequest):
     prompt = build_init_prompt(request.mode, request.era, request.year or "", request.character_type, request.character,
                                request.world_context, reference_document)
     try:
-        output = await call_openai(prompt)
+        # The complete reference document is deliberately supplied on first
+        # initialization. Keep the response budget bounded so input plus
+        # output stays within compatible providers' context limits.
+        output = await call_openai(prompt, max_tokens=6000, timeout_seconds=180.0)
     except AIServiceError as error:
         raise HTTPException(status_code=502, detail=f"AI配置失败：{error}，不能开始人生")
     if not output.get("initial_state") or not output.get("world_background"):
